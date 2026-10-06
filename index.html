@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>내전 전적 검색</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M18 44 32 12l14 32-14-7-14 7Z' fill='%2338bdf8'/%3E%3Cpath d='M24 45h16v5H24z' fill='%23facc15'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel search-panel" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">League of Legends Custom Match Tracker</p>
+          <h1 id="page-title">내전 전적 검색</h1>
+          <p class="summary">
+            Riot ID를 입력하면 최근 경기에서 사용자 설정 5대5만 골라 협곡과 칼바람으로 나눠 보여줍니다.
+          </p>
+        </div>
+
+        <form id="searchForm" class="search-form">
+          <label>
+            <span>게임 이름</span>
+            <input id="gameName" name="gameName" autocomplete="off" value="장천동부모도둑감성준" />
+          </label>
+          <label class="tag-field">
+            <span>태그</span>
+            <input id="tagLine" name="tagLine" autocomplete="off" value="6974" />
+          </label>
+          <label class="region-field">
+            <span>서버</span>
+            <select id="region" name="region">
+              <option value="kr" selected>KR</option>
+              <option value="jp1">JP</option>
+              <option value="na1">NA</option>
+              <option value="euw1">EUW</option>
+            </select>
+          </label>
+          <button type="submit">검색</button>
+        </form>
+
+        <div id="notice" class="notice" role="status">
+          GitHub Pages에서는 API 키를 숨길 수 없어서 별도 API 서버 주소를 연결해야 합니다.
+        </div>
+      </section>
+
+      <section class="panel setup-panel" aria-labelledby="setup-title">
+        <div>
+          <p class="eyebrow">GitHub Pages Setup</p>
+          <h2 id="setup-title">API 연결 설정</h2>
+          <p>
+            사이트 파일은 GitHub에 올려도 됩니다. Riot API 키는 GitHub에 올리지 말고,
+            아래 API 서버 주소에는 키를 숨겨둔 프록시 주소만 넣으세요.
+          </p>
+          <p class="key-warning">
+            `RGAPI-`로 시작하는 값은 API 키입니다. 이 칸에는 넣지 마세요.
+          </p>
+        </div>
+        <form id="settingsForm" class="settings-form">
+          <label>
+            <span>API 서버 주소</span>
+            <input id="apiBaseUrl" name="apiBaseUrl" placeholder="예: https://my-lol-api.workers.dev" />
+          </label>
+          <button type="submit">저장</button>
+        </form>
+      </section>
+
+      <section class="stats-grid" aria-label="요약">
+        <article class="stat-card">
+          <span>검색 대상</span>
+          <strong id="targetName">장천동부모도둑감성준#6974</strong>
+        </article>
+        <article class="stat-card">
+          <span>사용자 설정 5대5</span>
+          <strong id="totalCount">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>협곡 / 칼바람</span>
+          <strong id="mapSplit">0 / 0</strong>
+        </article>
+      </section>
+
+      <section class="columns">
+        <article class="match-column">
+          <div class="column-head">
+            <div>
+              <p class="eyebrow">Summoner's Rift</p>
+              <h2>협곡 내전</h2>
+            </div>
+            <span id="riftCount" class="pill">0경기</span>
+          </div>
+          <div id="riftList" class="match-list"></div>
+        </article>
+
+        <article class="match-column">
+          <div class="column-head">
+            <div>
+              <p class="eyebrow">Howling Abyss</p>
+              <h2>칼바람 내전</h2>
+            </div>
+            <span id="aramCount" class="pill">0경기</span>
+          </div>
+          <div id="aramList" class="match-list"></div>
+        </article>
+      </section>
+    </main>
+
+    <template id="matchTemplate">
+      <article class="match-card">
+        <div class="match-top">
+          <div>
+            <h3></h3>
+            <p class="match-meta"></p>
+          </div>
+          <span class="result"></span>
+        </div>
+        <div class="player-line"></div>
+        <p class="sample-label"></p>
+        <div class="team-grid"></div>
+      </article>
+    </template>
+
+    <script>
+      window.INHOUSE_CONFIG = {
+        API_BASE_URL: "",
+      };
+    </script>
+    <script src="./app.js"></script>
+  </body>
+</html>
