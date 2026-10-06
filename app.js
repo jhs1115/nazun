@@ -50,6 +50,7 @@ const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABAS
 const supabaseClient = SUPABASE_READY
   ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
   : null;
+const AUTH_REDIRECT_URL = SUPABASE_CONFIG.redirectUrl || `${window.location.origin}${window.location.pathname}`;
 
 const state = {
   players: readStore(PLAYER_STORE_KEY, []),
@@ -171,6 +172,7 @@ async function signup() {
     email,
     password,
     options: {
+      emailRedirectTo: AUTH_REDIRECT_URL,
       data: {
         display_name: email.split("@")[0],
       },
