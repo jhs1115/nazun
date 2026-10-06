@@ -16,6 +16,12 @@ const regionGroups = {
   tr1: "europe",
   ru: "europe",
 };
+const mapNames = {
+  11: "소환사의 협곡",
+  12: "칼바람 나락",
+  21: "Nexus Blitz",
+  30: "아레나",
+};
 
 loadDotEnv();
 
@@ -26,7 +32,6 @@ const server = http.createServer(async (req, res) => {
       await handleSearch(url, res);
       return;
     }
-
     serveStatic(url.pathname, res);
   } catch (error) {
     sendJson(res, 500, { message: error.message || "서버 오류가 발생했습니다." });
@@ -34,13 +39,12 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`내전 전적 검색 사이트: http://localhost:${port}`);
+  console.log(`NAZUN 내전 허브: http://localhost:${port}`);
 });
 
 function loadDotEnv() {
   const envPath = path.join(root, ".env");
   if (!fs.existsSync(envPath)) return;
-
   for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -55,19 +59,14 @@ function loadDotEnv() {
 async function handleSearch(url, res) {
   const apiKey = process.env.RIOT_API_KEY;
   if (!apiKey) {
-    sendJson(res, 200, {
-      source: "demo",
-      target: `${url.searchParams.get("gameName") || "장천동부모도둑감성준"}#${url.searchParams.get("tagLine") || "6974"}`,
-      message: ".env 파일에 RIOT_API_KEY를 넣으면 실제 Riot API 검색이 켜집니다.",
-      matches: [],
-    });
+    sendJson(res, 500, { message: ".env 파일에 RIOT_API_KEY가 없습니다." });
     return;
   }
 
   const gameName = required(url, "gameName");
   const tagLine = required(url, "tagLine").replace(/^#/, "");
   const region = (url.searchParams.get("region") || "kr").toLowerCase();
-  const count = clamp(Number(url.searchParams.get("count") || 20), 1, 20);
+  const count = clamp(Number(url.searchParams.get("count") || 10), 1, 10);
   const group = regionGroups[region];
   if (!group) throw new Error("지원하지 않는 서버입니다.");
 
@@ -75,57 +74,53 @@ async function handleSearch(url, res) {
     `https://${group}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`,
     apiKey
   );
-
   const matchIds = await riotFetch(
     `https://${group}.api.riotgames.com/lol/match/v5/matches/by-puuid/${account.puuid}/ids?start=0&count=${count}`,
     apiKey
   );
 
-  const details = [];
+  const matches = [];
   for (const matchId of matchIds) {
     const detail = await riotFetch(`https://${group}.api.riotgames.com/lol/match/v5/matches/${matchId}`, apiKey);
     const normalized = normalizeMatch(detail, account.puuid);
-    if (normalized) details.push(normalized);
+    if (normalized) matches.push(normalized);
   }
 
   sendJson(res, 200, {
     source: "riot",
     target: `${account.gameName}#${account.tagLine}`,
-    matches: details,
+    matches,
   });
 }
 
 function normalizeMatch(match, puuid) {
   const info = match.info;
-  if (!info) return null;
-
-  const isCustom = info.gameType === "CUSTOM_GAME" || info.queueId === 0;
-  const isFiveVsFive = Array.isArray(info.participants) && info.participants.length === 10;
-  const isRift = info.mapId === 11;
-  const isAram = info.mapId === 12;
-  if (!isCustom || !isFiveVsFive || (!isRift && !isAram)) return null;
-
+  if (!info || !Array.isArray(info.participants)) return null;
   const player = info.participants.find((participant) => participant.puuid === puuid);
+  if (!player) return null;
   const blue = info.participants.filter((participant) => participant.teamId === 100);
   const red = info.participants.filter((participant) => participant.teamId === 200);
-
   return {
     matchId: match.metadata.matchId,
-    map: isRift ? "rift" : "aram",
-    mapName: isRift ? "협곡" : "칼바람",
+    queueId: info.queueId,
+    mapId: info.mapId,
+    mapName: mapNames[info.mapId] || `Map ${info.mapId}`,
     gameMode: info.gameMode,
+    gameType: info.gameType,
     gameStart: info.gameStartTimestamp || info.gameCreation,
     duration: info.gameDuration,
-    player: player
-      ? {
-          championName: player.championName,
-          kills: player.kills,
-          deaths: player.deaths,
-          assists: player.assists,
-          win: player.win,
-          teamId: player.teamId,
-        }
-      : null,
+    player: {
+      championName: player.championName,
+      kills: player.kills,
+      deaths: player.deaths,
+      assists: player.assists,
+      win: player.win,
+      teamId: player.teamId,
+      totalDamageDealtToChampions: player.totalDamageDealtToChampions,
+      goldEarned: player.goldEarned,
+      totalMinionsKilled: player.totalMinionsKilled,
+      neutralMinionsKilled: player.neutralMinionsKilled,
+    },
     teams: [blue.map(displayName), red.map(displayName)],
   };
 }
@@ -149,22 +144,15 @@ async function riotFetch(url, apiKey) {
 function serveStatic(rawPath, res) {
   const safePath = rawPath === "/" ? "/index.html" : rawPath;
   const filePath = path.normalize(path.join(root, decodeURIComponent(safePath)));
-  if (!filePath.startsWith(root)) {
-    sendText(res, 403, "Forbidden");
-    return;
-  }
-
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    sendText(res, 404, "Not found");
-    return;
-  }
-
+  if (!filePath.startsWith(root)) return sendText(res, 403, "Forbidden");
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) return sendText(res, 404, "Not found");
   const ext = path.extname(filePath).toLowerCase();
   const types = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
   };
   res.writeHead(200, { "Content-Type": types[ext] || "application/octet-stream" });
   fs.createReadStream(filePath).pipe(res);

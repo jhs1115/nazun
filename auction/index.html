@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>팔협지식 경매</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <section class="mode-screen" id="modeScreen" aria-label="경매 모드 선택">
+    <div class="mode-card">
+      <h1>경매 모드 선택</h1>
+      <p>진행할 경매 방식을 고르세요.</p>
+      <div class="mode-options">
+        <button class="mode-button" type="button" data-mode="palhyeop">
+          <strong>팔협지식 경매</strong>
+        </button>
+        <button class="mode-button" type="button" data-mode="normal">
+          <strong>일반 경매</strong>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <main class="app hidden" id="auctionApp">
+    <header class="topbar">
+      <div class="top-left">
+        <div class="top-nav-actions">
+          <button class="back-button" id="backButton" type="button">돌아가기</button>
+          <button class="rule-button" id="ruleButton" type="button">경매 룰</button>
+        </div>
+        <div class="title-area">
+          <h1 id="appTitle">팔협지식 경매</h1>
+          <p id="appSubtitle">이래서 팔협지 팔협지 하는구나...</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="reround-shuffle-button" id="reroundShuffleButton" type="button">순서 섞기</button>
+        <button class="cataclysm-toggle-button active" id="cataclysmToggleButton" type="button">대격변류 증강 ON</button>
+        <button class="reset-button" id="resetButton" type="button">전체 초기화</button>
+      </div>
+    </header>
+
+    <div class="dashboard-layout">
+      <div class="main-column">
+        <section aria-label="팀 영역">
+          <div class="section-title">
+            <h2>팀 현황</h2>
+            <span>드롭해서 배정 / 중복 라인 0P 처리</span>
+          </div>
+          <div class="teams-grid" id="teamsGrid"></div>
+        </section>
+
+        <section aria-label="플레이어 리스트">
+          <div class="section-title">
+            <h2>선수 목록</h2>
+            <span> <span class="tier-note"></span></span>
+          </div>
+          <div class="panel-card">
+            <div class="players-list" id="playersList"></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="auction-card" aria-label="경매 입력 시스템">
+        <div class="auction-form">
+          <div class="field-group">
+            <label for="auctionPlayerSelect">경매되는 사람</label>
+            <select class="auction-select hidden-native-select" id="auctionPlayerSelect" aria-hidden="true" tabindex="-1"></select>
+            <div class="auction-player-buttons" id="auctionPlayerButtons" aria-label="경매 매물 선택"></div>
+          </div>
+          <div class="field-group">
+            <label for="auctionTeamSelect">부른 사람</label>
+            <select class="auction-select hidden-native-select" id="auctionTeamSelect" aria-hidden="true" tabindex="-1"></select>
+            <div class="auction-team-buttons" id="auctionTeamButtons" aria-label="부른 사람 선택"></div>
+          </div>
+          <div class="field-group">
+            <label for="auctionBidInput">현재 부른 값</label>
+            <input class="auction-input" id="auctionBidInput" type="number" min="1" step="1" value="1" />
+            <input class="bid-slider" id="auctionBidSlider" type="range" min="1" max="200" step="1" value="1" aria-label="부른 값 드래그 조정" />
+          </div>
+          <button class="auction-submit" id="auctionApplyButton" type="button">입력하기</button>
+          <div class="award-system">
+            <strong>낙찰 시스템</strong>
+            <button class="award-button" id="awardButton" type="button">최고가로 낙찰하기</button>
+          </div>
+          <div class="auction-message" id="auctionMessage" aria-live="polite"></div>
+          <div class="auction-board">
+            <div class="auction-board-header">
+              <span class="auction-board-title">현재 입력된 경매값</span>
+              <button class="clear-bids-button" id="clearBidsButton" type="button">모든 입력값 취소</button>
+            </div>
+            <div class="auction-bid-list" id="auctionBidList"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <div class="modal-backdrop" id="resetConfirmModal" role="dialog" aria-modal="true" aria-labelledby="resetConfirmTitle">
+    <div class="modal-card">
+      <h3 id="resetConfirmTitle">전체 초기화</h3>
+      <p>모든 팀 배정과 점수를 초기화할까요?</p>
+      <div class="modal-actions">
+        <button class="ghost-button" id="cancelResetButton" type="button">취소</button>
+        <button class="primary-button" id="confirmResetButton" type="button" style="background: linear-gradient(135deg, #e65858, #c43f3f);">초기화</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="ruleModal" role="dialog" aria-modal="true" aria-labelledby="ruleModalTitle">
+    <div class="modal-card rule-modal-card">
+      <h3 id="ruleModalTitle">경매 룰</h3>
+      <div class="rule-modal-content">
+        <section>
+          <h4>팀장</h4>
+          <p>포인트를 소모하여 선수를 구입할수 있으며, 마지막으로 가장 높은값을 부른사람이 선수를 얻게됩니다.</p>
+          <p>티어에 따라 닉네임에 색깔이 부여됩니다.</p>
+          <p>기본가격은 모든 티어 1P이며, 마스터 이상 티어는 50P부터 입찰합니다.</p>
+          <p>한팀에 같은 라인이 겹치면 해당 매물을 0P로 선수목록에 돌려보낼수 있습니다.</p>
+          <p>경매순서가 한바퀴 돌면 팀장은 원하는 팀원을 0P매물로 다시 선수 목록으로 내릴수 있습니다.</p>
+          <p>유찰, 방출 선수끼리 다시돌릴때에는, 랜덤으로 섞으며 모든 기본가는 1P로 통일합니다.</p>
+          <p>선수를 방출해도 포인트는 돌아오지 않습니다.</p>
+        </section>
+        <section>
+          <h4>플레이어</h4>
+          <p>팀장을 제외한 플레이어들은 마이크를 끄고 있어야하며, 디코 통화방 채팅방을 통해 대화는 가능합니다.</p>
+          <p>단, 경매와 관련없는 얘기는 삼가해주세요.</p>
+          <p>자신의 차례가 아닌 매물은 발언 금지입니다.</p>
+          <p>만약 경매가 끝나면 경매 결과를 채팅방에 보낼것이기에, 채팅방 사용을 멈춰주세요 ㅎ</p>
+          <p>게임 안에서는 화내지 마시고 싸우지 마세요</p>
+        </section>
+        <section class="augment-rule-box hidden" id="augmentRuleSection">
+          <h4>증강 룰</h4>
+          <p>팔협지식 경매에서는 팀장마다 증강을 최대 2개까지 뽑을 수 있습니다.</p>
+          <p>증강 1회 뽑기 비용은 20P이며, 사용한 포인트는 즉시 차감됩니다.</p>
+          <p>증강은 오른쪽 경매 시스템의 부른 사람 옆 버튼이나 팀 현황의 증강 뽑기 버튼으로 뽑을 수 있습니다.</p>
+          <p>대격변류 증강은 상단 ON/OFF 버튼으로 후보 포함 여부를 바꿀 수 있습니다.</p>
+          <p>뽑은 증강은 선택 즉시 효과가 적용되며, 필요한 경우 대상 선수나 팀을 직접 선택합니다.</p>
+        </section>
+      </div>
+      <div class="modal-actions">
+        <button class="primary-button" id="closeRuleButton" type="button">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="scoreModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <h3 id="modalTitle">점수 입력</h3>
+      <p id="modalDescription">배정된 팀이 있는 선수만 팀 포인트에서 점수가 차감됩니다.</p>
+      <input class="score-input" id="scoreInput" type="number" min="15" step="1" placeholder="15" />
+      <div class="modal-error" id="modalError" aria-live="polite"></div>
+      <div class="modal-actions">
+        <button class="ghost-button" id="cancelScoreButton" type="button">취소</button>
+        <button class="primary-button" id="saveScoreButton" type="button">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop augment-open" id="augmentModal" role="dialog" aria-modal="true" aria-label="증강 선택">
+    <div class="modal-card augment-modal-card">
+      <div class="augment-options" id="augmentOptions"></div>
+      <button class="augment-situation-toggle" id="augmentSituationButton" type="button">현재 상황 보기</button>
+      <div class="augment-situation" id="augmentSituation"></div>
+    </div>
+  </div>
+
+  <div class="screen-effect" id="screenEffect"></div>
+
+  <div class="dice-overlay" id="diceOverlay" aria-hidden="true">
+    <div class="dice-stage">
+      <div class="dice-face" id="diceFace" data-value="1"></div>
+      <div class="dice-result" id="diceResult">주사위 굴리는 중</div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

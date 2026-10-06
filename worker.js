@@ -11,6 +11,13 @@ const regionGroups = {
   ru: "europe",
 };
 
+const mapNames = {
+  11: "소환사의 협곡",
+  12: "칼바람 나락",
+  21: "Nexus Blitz",
+  30: "아레나",
+};
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -31,7 +38,7 @@ export default {
       const gameName = required(url, "gameName");
       const tagLine = required(url, "tagLine").replace(/^#/, "");
       const region = (url.searchParams.get("region") || "kr").toLowerCase();
-      const count = clamp(Number(url.searchParams.get("count") || 20), 1, 20);
+      const count = clamp(Number(url.searchParams.get("count") || 10), 1, 10);
       const group = regionGroups[region];
       if (!group) throw new Error("지원하지 않는 서버입니다.");
 
@@ -65,35 +72,35 @@ export default {
 
 function normalizeMatch(match, puuid) {
   const info = match.info;
-  if (!info) return null;
-
-  const isCustom = info.gameType === "CUSTOM_GAME" || info.queueId === 0;
-  const isFiveVsFive = Array.isArray(info.participants) && info.participants.length === 10;
-  const isRift = info.mapId === 11;
-  const isAram = info.mapId === 12;
-  if (!isCustom || !isFiveVsFive || (!isRift && !isAram)) return null;
+  if (!info || !Array.isArray(info.participants)) return null;
 
   const player = info.participants.find((participant) => participant.puuid === puuid);
+  if (!player) return null;
+
   const blue = info.participants.filter((participant) => participant.teamId === 100);
   const red = info.participants.filter((participant) => participant.teamId === 200);
 
   return {
     matchId: match.metadata.matchId,
-    map: isRift ? "rift" : "aram",
-    mapName: isRift ? "협곡" : "칼바람",
+    queueId: info.queueId,
+    mapId: info.mapId,
+    mapName: mapNames[info.mapId] || `Map ${info.mapId}`,
     gameMode: info.gameMode,
+    gameType: info.gameType,
     gameStart: info.gameStartTimestamp || info.gameCreation,
     duration: info.gameDuration,
-    player: player
-      ? {
-          championName: player.championName,
-          kills: player.kills,
-          deaths: player.deaths,
-          assists: player.assists,
-          win: player.win,
-          teamId: player.teamId,
-        }
-      : null,
+    player: {
+      championName: player.championName,
+      kills: player.kills,
+      deaths: player.deaths,
+      assists: player.assists,
+      win: player.win,
+      teamId: player.teamId,
+      totalDamageDealtToChampions: player.totalDamageDealtToChampions,
+      goldEarned: player.goldEarned,
+      totalMinionsKilled: player.totalMinionsKilled,
+      neutralMinionsKilled: player.neutralMinionsKilled,
+    },
     teams: [blue.map(displayName), red.map(displayName)],
   };
 }

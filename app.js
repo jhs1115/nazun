@@ -1,101 +1,61 @@
+const apiBaseUrl = (window.INHOUSE_CONFIG?.API_BASE_URL || "").replace(/\/+$/, "");
+
 const els = {
+  tabs: document.querySelectorAll(".tab"),
+  views: document.querySelectorAll(".view"),
+  apiState: document.querySelector("#apiState"),
   form: document.querySelector("#searchForm"),
-  settingsForm: document.querySelector("#settingsForm"),
   gameName: document.querySelector("#gameName"),
   tagLine: document.querySelector("#tagLine"),
   region: document.querySelector("#region"),
-  apiBaseUrl: document.querySelector("#apiBaseUrl"),
   notice: document.querySelector("#notice"),
   targetName: document.querySelector("#targetName"),
   totalCount: document.querySelector("#totalCount"),
-  mapSplit: document.querySelector("#mapSplit"),
-  riftCount: document.querySelector("#riftCount"),
-  aramCount: document.querySelector("#aramCount"),
-  riftList: document.querySelector("#riftList"),
-  aramList: document.querySelector("#aramList"),
-  template: document.querySelector("#matchTemplate"),
+  winLoss: document.querySelector("#winLoss"),
+  matchList: document.querySelector("#matchList"),
+  matchTemplate: document.querySelector("#matchTemplate"),
+  playerForm: document.querySelector("#playerForm"),
+  playerNameInput: document.querySelector("#playerNameInput"),
+  playerTierInput: document.querySelector("#playerTierInput"),
+  playerLaneInput: document.querySelector("#playerLaneInput"),
+  playerList: document.querySelector("#playerList"),
+  clearPlayersButton: document.querySelector("#clearPlayersButton"),
+  inhouseMatchForm: document.querySelector("#inhouseMatchForm"),
+  blueTeamInput: document.querySelector("#blueTeamInput"),
+  redTeamInput: document.querySelector("#redTeamInput"),
+  winnerInput: document.querySelector("#winnerInput"),
+  matchMemoInput: document.querySelector("#matchMemoInput"),
+  clearMatchesButton: document.querySelector("#clearMatchesButton"),
+  rankingTable: document.querySelector("#rankingTable"),
+  historyList: document.querySelector("#historyList"),
 };
 
-const storageKey = "inhouse-api-base-url";
-const configuredBaseUrl = window.INHOUSE_CONFIG?.API_BASE_URL || "";
-
-const demoData = {
-  source: "demo",
-  target: "장천동부모도둑감성준#6974",
-  matches: [
-    {
-      matchId: "DEMO_RIFT_1",
-      isDemo: true,
-      map: "rift",
-      mapName: "협곡",
-      gameMode: "CLASSIC",
-      gameStart: Date.now() - 1000 * 60 * 60 * 7,
-      duration: 1814,
-      player: { championName: "Yone", kills: 8, deaths: 5, assists: 9, win: true, teamId: 100 },
-      teams: [
-        ["장천동부모도둑감성준", "Mid Gap", "Jungle King", "Top Lane", "Bot Duo"],
-        ["Friend A", "Friend B", "Friend C", "Friend D", "Friend E"],
-      ],
-    },
-    {
-      matchId: "DEMO_ARAM_1",
-      isDemo: true,
-      map: "aram",
-      mapName: "칼바람",
-      gameMode: "ARAM",
-      gameStart: Date.now() - 1000 * 60 * 60 * 29,
-      duration: 1190,
-      player: { championName: "Ezreal", kills: 14, deaths: 8, assists: 21, win: false, teamId: 200 },
-      teams: [
-        ["Friend A", "Friend B", "Friend C", "Friend D", "Friend E"],
-        ["장천동부모도둑감성준", "Snowball", "Poro Snack", "Bridge", "ARAM Enjoyer"],
-      ],
-    },
-  ],
+const state = {
+  players: readStore("nazun-players", [
+    { name: "감성준", tier: "골드", lane: "Mid" },
+    { name: "힘웃사", tier: "골드", lane: "Jug" },
+    { name: "그그달", tier: "골드", lane: "Adc" },
+    { name: "레전드", tier: "플래티넘", lane: "Adc" },
+    { name: "다람쥐", tier: "플래티넘", lane: "Mid" },
+  ]),
+  matches: readStore("nazun-matches", []),
 };
+
+function readStore(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStore(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
 
 function setNotice(message, type = "") {
   els.notice.className = `notice ${type}`.trim();
   els.notice.textContent = message;
-}
-
-function getApiBaseUrl() {
-  return (localStorage.getItem(storageKey) || configuredBaseUrl || "").replace(/\/+$/, "");
-}
-
-function getApiUrl(path) {
-  const baseUrl = getApiBaseUrl();
-  if (baseUrl) return `${baseUrl}${path}`;
-  if (location.protocol === "http:" || location.protocol === "https:") return path;
-  return "";
-}
-
-function formatDuration(seconds) {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}분 ${String(secs).padStart(2, "0")}초`;
-}
-
-function formatDate(ms) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(ms));
-}
-
-function emptyState(container, message) {
-  container.innerHTML = `<div class="empty">${message}</div>`;
-}
-
-function renderTeam(team, title) {
-  return `
-    <div class="team-box">
-      <div class="team-title">${title}</div>
-      ${team.map((name) => `<div class="summoner" title="${escapeHtml(name)}">${escapeHtml(name)}</div>`).join("")}
-    </div>
-  `;
 }
 
 function escapeHtml(value) {
@@ -107,45 +67,64 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function renderMatch(match) {
-  const node = els.template.content.firstElementChild.cloneNode(true);
-  const player = match.player || {};
-  const resultText = player.win ? "승리" : "패배";
-  const resultClass = player.win ? "win" : "loss";
+function formatDate(ms) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(ms));
+}
 
-  node.querySelector("h3").textContent = `${match.mapName} · ${player.championName || "챔피언 정보 없음"}`;
+function formatDuration(seconds) {
+  const min = Math.floor((seconds || 0) / 60);
+  const sec = Math.floor((seconds || 0) % 60);
+  return `${min}분 ${String(sec).padStart(2, "0")}초`;
+}
+
+function queueLabel(queueId, gameMode) {
+  const labels = {
+    400: "일반 교차 선택",
+    420: "솔로랭크",
+    430: "일반 비공개 선택",
+    440: "자유랭크",
+    450: "칼바람",
+    490: "빠른 대전",
+  };
+  return labels[queueId] || gameMode || `Queue ${queueId}`;
+}
+
+function activateView(name) {
+  els.tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.view === name));
+  els.views.forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
+}
+
+function renderMatch(match) {
+  const node = els.matchTemplate.content.firstElementChild.cloneNode(true);
+  const player = match.player || {};
+  const participants = match.teams?.flat?.() || [];
+  node.querySelector("h3").textContent = `${match.mapName || "소환사의 협곡"} · ${player.championName || "챔피언 정보 없음"}`;
   node.querySelector(".match-meta").textContent = `${formatDate(match.gameStart)} · ${formatDuration(match.duration)} · ${match.matchId}`;
+  node.querySelector(".champion").textContent = player.championName || "-";
+  node.querySelector(".kda").textContent = `${player.kills ?? 0} / ${player.deaths ?? 0} / ${player.assists ?? 0}`;
+  node.querySelector(".queue").textContent = queueLabel(match.queueId, match.gameMode);
   const result = node.querySelector(".result");
-  result.textContent = resultText;
-  result.classList.add(resultClass);
-  node.querySelector(".player-line").innerHTML = `
-    <strong>${escapeHtml(player.championName || "-")}</strong>
-    <span>${player.kills ?? 0} / ${player.deaths ?? 0} / ${player.assists ?? 0}</span>
-  `;
-  node.querySelector(".sample-label").textContent = match.isDemo ? "샘플 팀 목록입니다. API 서버가 연결되면 실제 참가자 목록으로 바뀝니다." : "";
-  node.querySelector(".team-grid").innerHTML = `
-    ${renderTeam(match.teams?.[0] || [], "블루팀")}
-    ${renderTeam(match.teams?.[1] || [], "레드팀")}
-  `;
+  result.textContent = player.win ? "승리" : "패배";
+  result.classList.add(player.win ? "win" : "loss");
+  node.querySelector(".participants").textContent = participants.length ? participants.join(" · ") : "참가자 정보 없음";
   return node;
 }
 
-function render(data) {
+function renderSearch(data) {
   const matches = data.matches || [];
-  const rift = matches.filter((match) => match.map === "rift");
-  const aram = matches.filter((match) => match.map === "aram");
-
+  const wins = matches.filter((match) => match.player?.win).length;
   els.targetName.textContent = data.target || `${els.gameName.value}#${els.tagLine.value}`;
   els.totalCount.textContent = String(matches.length);
-  els.mapSplit.textContent = `${rift.length} / ${aram.length}`;
-  els.riftCount.textContent = `${rift.length}경기`;
-  els.aramCount.textContent = `${aram.length}경기`;
-
-  els.riftList.replaceChildren(...rift.map(renderMatch));
-  els.aramList.replaceChildren(...aram.map(renderMatch));
-
-  if (!rift.length) emptyState(els.riftList, "최근 기록에서 협곡 사용자 설정 5대5를 찾지 못했습니다.");
-  if (!aram.length) emptyState(els.aramList, "최근 기록에서 칼바람 사용자 설정 5대5를 찾지 못했습니다.");
+  els.winLoss.textContent = `${wins} / ${matches.length - wins}`;
+  els.matchList.replaceChildren(...matches.map(renderMatch));
+  if (!matches.length) {
+    els.matchList.innerHTML = `<div class="empty">최근 조회 범위에서 표시할 일반/랭크 전적이 없습니다.</div>`;
+  }
 }
 
 async function search(event) {
@@ -154,66 +133,188 @@ async function search(event) {
   const gameName = els.gameName.value.trim();
   const tagLine = els.tagLine.value.trim().replace(/^#/, "");
   const region = els.region.value;
-
-  els.targetName.textContent = `${gameName}#${tagLine}`;
   button.disabled = true;
-  setNotice("최근 경기에서 사용자 설정 5대5를 찾는 중입니다.");
+  setNotice("Riot API에서 최근 전적을 가져오는 중입니다.");
 
   try {
-    const params = new URLSearchParams({ gameName, tagLine, region, count: "20" });
-    const apiUrl = getApiUrl(`/api/search?${params}`);
-
-    if (!apiUrl) {
-      render(demoData);
-      setNotice("GitHub Pages에서 실제 전적을 보려면 API 서버 주소를 먼저 연결해야 합니다.", "warning");
-      return;
-    }
-
-    const response = await fetch(apiUrl);
+    const params = new URLSearchParams({ gameName, tagLine, region, count: "10", mode: "all" });
+    const response = await fetch(`${apiBaseUrl}/api/search?${params}`);
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "검색에 실패했습니다.");
-    }
-
-    render(data);
-    if (data.source === "demo") {
-      setNotice(data.message || "Riot API 키가 없어 데모 데이터를 표시합니다.", "warning");
-    } else {
-      setNotice(`${data.target}의 최근 사용자 설정 5대5 ${data.matches.length}경기를 불러왔습니다.`);
-    }
+    if (!response.ok) throw new Error(data.message || "검색 실패");
+    renderSearch(data);
+    setNotice(`${data.target} 최근 전적 ${data.matches.length}개를 불러왔습니다.`);
   } catch (error) {
-    render({ target: `${gameName}#${tagLine}`, matches: [] });
+    renderSearch({ target: `${gameName}#${tagLine}`, matches: [] });
     setNotice(error.message, "error");
   } finally {
     button.disabled = false;
   }
 }
 
-function saveSettings(event) {
-  event.preventDefault();
-  const value = els.apiBaseUrl.value.trim().replace(/\/+$/, "");
-  if (value.startsWith("RGAPI-")) {
-    setNotice("이 값은 Riot API 키입니다. API 서버 주소 칸에는 https://...workers.dev 같은 주소를 넣어야 합니다.", "error");
-    return;
-  }
-  if (value) {
-    localStorage.setItem(storageKey, value);
-    setNotice(`API 서버 주소를 저장했습니다: ${value}`);
-  } else {
-    localStorage.removeItem(storageKey);
-    setNotice("API 서버 주소를 비웠습니다. 같은 주소의 /api/search를 사용합니다.", "warning");
+function splitNames(value) {
+  return value
+    .split(/\r?\n|,/)
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
+function renderPlayers() {
+  els.playerList.replaceChildren(
+    ...state.players.map((player, index) => {
+      const row = document.createElement("div");
+      row.className = "player-row";
+      row.innerHTML = `
+        <div>
+          <strong>${escapeHtml(player.name)}</strong>
+          <div class="player-meta">${escapeHtml(player.tier)} · ${escapeHtml(player.lane)}</div>
+        </div>
+        <button class="ghost" type="button" data-remove-player="${index}">삭제</button>
+      `;
+      return row;
+    })
+  );
+  if (!state.players.length) {
+    els.playerList.innerHTML = `<div class="empty">참가자를 추가하세요.</div>`;
   }
 }
 
-function initSettings() {
-  els.apiBaseUrl.value = getApiBaseUrl();
-  if (!getApiBaseUrl() && location.hostname.includes("github.io")) {
-    setNotice("GitHub Pages에서는 먼저 API 서버 주소를 연결해야 실제 Riot 전적을 불러올 수 있습니다.", "warning");
+function renderRankings() {
+  const table = new Map();
+  for (const player of state.players) {
+    table.set(player.name, { name: player.name, win: 0, loss: 0, games: 0 });
+  }
+
+  for (const match of state.matches) {
+    const winners = match.winner === "blue" ? match.blue : match.red;
+    const losers = match.winner === "blue" ? match.red : match.blue;
+    for (const name of winners) {
+      if (!table.has(name)) table.set(name, { name, win: 0, loss: 0, games: 0 });
+      const item = table.get(name);
+      item.win += 1;
+      item.games += 1;
+    }
+    for (const name of losers) {
+      if (!table.has(name)) table.set(name, { name, win: 0, loss: 0, games: 0 });
+      const item = table.get(name);
+      item.loss += 1;
+      item.games += 1;
+    }
+  }
+
+  const rows = [...table.values()].sort((a, b) => b.win - a.win || a.loss - b.loss || a.name.localeCompare(b.name, "ko"));
+  els.rankingTable.replaceChildren(
+    ...rows.map((row, index) => {
+      const winRate = row.games ? Math.round((row.win / row.games) * 100) : 0;
+      const el = document.createElement("div");
+      el.className = "rank-row";
+      el.innerHTML = `
+        <div>
+          <strong>${index + 1}. ${escapeHtml(row.name)}</strong>
+          <div class="rank-meta">${row.games}전 ${row.win}승 ${row.loss}패 · 승률 ${winRate}%</div>
+        </div>
+        <span>${row.win}W</span>
+      `;
+      return el;
+    })
+  );
+}
+
+function renderHistory() {
+  els.historyList.replaceChildren(
+    ...state.matches.map((match, index) => {
+      const el = document.createElement("div");
+      el.className = "history-row";
+      const winner = match.winner === "blue" ? "블루팀" : "레드팀";
+      el.innerHTML = `
+        <div>
+          <strong>${winner} 승리</strong>
+          <div class="history-meta">블루: ${escapeHtml(match.blue.join(", "))}<br />레드: ${escapeHtml(match.red.join(", "))}</div>
+          <div class="history-meta">${escapeHtml(match.memo || "메모 없음")}</div>
+        </div>
+        <button class="ghost" type="button" data-remove-match="${index}">삭제</button>
+      `;
+      return el;
+    })
+  );
+  if (!state.matches.length) {
+    els.historyList.innerHTML = `<div class="empty">아직 저장된 내전 기록이 없습니다.</div>`;
   }
 }
 
+function renderManager() {
+  renderPlayers();
+  renderRankings();
+  renderHistory();
+}
+
+function savePlayers() {
+  writeStore("nazun-players", state.players);
+}
+
+function saveMatches() {
+  writeStore("nazun-matches", state.matches);
+}
+
+els.tabs.forEach((tab) => tab.addEventListener("click", () => activateView(tab.dataset.view)));
 els.form.addEventListener("submit", search);
-els.settingsForm.addEventListener("submit", saveSettings);
-initSettings();
-render(demoData);
+
+els.playerForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = els.playerNameInput.value.trim();
+  if (!name) return;
+  state.players.push({ name, tier: els.playerTierInput.value, lane: els.playerLaneInput.value });
+  els.playerNameInput.value = "";
+  savePlayers();
+  renderManager();
+});
+
+els.playerList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-player]");
+  if (!button) return;
+  state.players.splice(Number(button.dataset.removePlayer), 1);
+  savePlayers();
+  renderManager();
+});
+
+els.clearPlayersButton.addEventListener("click", () => {
+  state.players = [];
+  savePlayers();
+  renderManager();
+});
+
+els.inhouseMatchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const blue = splitNames(els.blueTeamInput.value);
+  const red = splitNames(els.redTeamInput.value);
+  if (!blue.length || !red.length) return;
+  state.matches.unshift({
+    blue,
+    red,
+    winner: els.winnerInput.value,
+    memo: els.matchMemoInput.value.trim(),
+    createdAt: Date.now(),
+  });
+  els.blueTeamInput.value = "";
+  els.redTeamInput.value = "";
+  els.matchMemoInput.value = "";
+  saveMatches();
+  renderManager();
+});
+
+els.historyList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-match]");
+  if (!button) return;
+  state.matches.splice(Number(button.dataset.removeMatch), 1);
+  saveMatches();
+  renderManager();
+});
+
+els.clearMatchesButton.addEventListener("click", () => {
+  state.matches = [];
+  saveMatches();
+  renderManager();
+});
+
+els.apiState.textContent = apiBaseUrl ? "Riot API 자동 연결" : "API 주소 없음";
+renderManager();
+renderSearch({ target: "장천동부모도둑감성준#6974", matches: [] });
