@@ -1,4 +1,6 @@
 const els = {
+  authOpenButton: document.querySelector("#authOpenButton"),
+  themeToggle: document.querySelector("#themeToggle"),
   menuToggle: document.querySelector("#menuToggle"),
   screenTabs: document.querySelector("#screenTabs"),
   tabs: document.querySelectorAll(".tab"),
@@ -19,6 +21,22 @@ const els = {
   clearMatchesButton: document.querySelector("#clearMatchesButton"),
   rankingTable: document.querySelector("#rankingTable"),
   historyList: document.querySelector("#historyList"),
+  authModal: document.querySelector("#authModal"),
+  authCloseButton: document.querySelector("#authCloseButton"),
+  loginPane: document.querySelector("#loginPane"),
+  signupPane: document.querySelector("#signupPane"),
+  loginUsername: document.querySelector("#loginUsername"),
+  loginPassword: document.querySelector("#loginPassword"),
+  loginButton: document.querySelector("#loginButton"),
+  loginMessage: document.querySelector("#loginMessage"),
+  signupUsername: document.querySelector("#signupUsername"),
+  signupPassword: document.querySelector("#signupPassword"),
+  signupButton: document.querySelector("#signupButton"),
+  signupMessage: document.querySelector("#signupMessage"),
+  showSignupButton: document.querySelector("#showSignupButton"),
+  showLoginButton: document.querySelector("#showLoginButton"),
+  toggleLoginPassword: document.querySelector("#toggleLoginPassword"),
+  toggleSignupPassword: document.querySelector("#toggleSignupPassword"),
 };
 
 const state = {
@@ -30,6 +48,7 @@ const state = {
     { name: "다람쥐", tier: "플래티넘", lane: "Mid" },
   ]),
   matches: readStore("nazun-matches", []),
+  currentUser: readStore("nazun-current-user", null),
 };
 
 function readStore(key, fallback) {
@@ -42,6 +61,19 @@ function readStore(key, fallback) {
 
 function writeStore(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function accounts() {
+  return readStore("nazun-accounts", []);
+}
+
+function saveAccounts(value) {
+  writeStore("nazun-accounts", value);
+}
+
+function setMessage(el, message, isError = false) {
+  el.textContent = message;
+  el.classList.toggle("error", isError);
 }
 
 function escapeHtml(value) {
@@ -64,6 +96,95 @@ function activateView(name) {
   els.tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.view === name));
   els.views.forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
   els.screenTabs.classList.remove("open");
+}
+
+function openAuth(mode = "login") {
+  els.authModal.classList.add("open");
+  els.authModal.setAttribute("aria-hidden", "false");
+  showAuthPane(mode);
+}
+
+function closeAuth() {
+  els.authModal.classList.remove("open");
+  els.authModal.setAttribute("aria-hidden", "true");
+}
+
+function showAuthPane(mode) {
+  const signup = mode === "signup";
+  els.loginPane.classList.toggle("active", !signup);
+  els.signupPane.classList.toggle("active", signup);
+  setMessage(els.loginMessage, "");
+  setMessage(els.signupMessage, "");
+}
+
+function togglePassword(input, button) {
+  const visible = input.type === "text";
+  input.type = visible ? "password" : "text";
+  button.textContent = visible ? "보기" : "숨기기";
+}
+
+function setCurrentUser(username) {
+  state.currentUser = username ? { username } : null;
+  writeStore("nazun-current-user", state.currentUser);
+  renderAuth();
+}
+
+function renderAuth() {
+  if (state.currentUser?.username) {
+    els.authOpenButton.textContent = `${state.currentUser.username} 로그아웃`;
+  } else {
+    els.authOpenButton.textContent = "로그인";
+  }
+}
+
+function signup() {
+  const username = els.signupUsername.value.trim();
+  const password = els.signupPassword.value;
+  if (!username || !password) {
+    setMessage(els.signupMessage, "아이디와 비밀번호를 입력하세요.", true);
+    return;
+  }
+  if (password.length < 4) {
+    setMessage(els.signupMessage, "비밀번호는 4자 이상으로 해주세요.", true);
+    return;
+  }
+  const list = accounts();
+  if (list.some((account) => account.username === username)) {
+    setMessage(els.signupMessage, "이미 있는 아이디입니다.", true);
+    return;
+  }
+  list.push({ username, password });
+  saveAccounts(list);
+  setCurrentUser(username);
+  els.signupUsername.value = "";
+  els.signupPassword.value = "";
+  closeAuth();
+}
+
+function login() {
+  const username = els.loginUsername.value.trim();
+  const password = els.loginPassword.value;
+  const account = accounts().find((item) => item.username === username && item.password === password);
+  if (!account) {
+    setMessage(els.loginMessage, "아이디나 비밀번호가 맞지 않습니다.", true);
+    return;
+  }
+  setCurrentUser(username);
+  els.loginPassword.value = "";
+  closeAuth();
+}
+
+function toggleTheme() {
+  const dark = !document.body.classList.contains("dark-mode");
+  document.body.classList.toggle("dark-mode", dark);
+  localStorage.setItem("nazun-theme", dark ? "dark" : "light");
+  els.themeToggle.textContent = dark ? "라이트모드" : "다크모드";
+}
+
+function initTheme() {
+  const dark = localStorage.getItem("nazun-theme") === "dark";
+  document.body.classList.toggle("dark-mode", dark);
+  els.themeToggle.textContent = dark ? "라이트모드" : "다크모드";
 }
 
 function renderPlayers() {
@@ -169,6 +290,33 @@ els.menuToggle.addEventListener("click", () => {
   els.screenTabs.classList.toggle("open");
 });
 
+els.themeToggle.addEventListener("click", toggleTheme);
+
+els.authOpenButton.addEventListener("click", () => {
+  if (state.currentUser?.username) {
+    setCurrentUser(null);
+    return;
+  }
+  openAuth("login");
+});
+
+els.authCloseButton.addEventListener("click", closeAuth);
+els.showSignupButton.addEventListener("click", () => showAuthPane("signup"));
+els.showLoginButton.addEventListener("click", () => showAuthPane("login"));
+els.signupButton.addEventListener("click", signup);
+els.loginButton.addEventListener("click", login);
+els.toggleLoginPassword.addEventListener("click", () => togglePassword(els.loginPassword, els.toggleLoginPassword));
+els.toggleSignupPassword.addEventListener("click", () => togglePassword(els.signupPassword, els.toggleSignupPassword));
+els.loginPassword.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") login();
+});
+els.signupPassword.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") signup();
+});
+els.authModal.addEventListener("click", (event) => {
+  if (event.target === els.authModal) closeAuth();
+});
+
 els.tabs.forEach((tab) => tab.addEventListener("click", () => activateView(tab.dataset.view)));
 
 document.addEventListener("click", (event) => {
@@ -233,4 +381,6 @@ els.clearMatchesButton.addEventListener("click", () => {
   renderManager();
 });
 
+initTheme();
+renderAuth();
 renderManager();

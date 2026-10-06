@@ -8,9 +8,14 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23071318'/%3E%3Cpath d='M13 42 27 12h10l14 30-9 8-10-23-10 23z' fill='%2338bdf8'/%3E%3Cpath d='M21 49h22v5H21z' fill='%23facc15'/%3E%3C/svg%3E" />
   </head>
   <body>
+    <div class="top-controls">
+      <button class="auth-button" id="authOpenButton" type="button">로그인</button>
+      <button class="theme-toggle" id="themeToggle" type="button">다크모드</button>
+    </div>
+
     <main class="app-shell">
       <div class="screen-menu">
-        <button class="menu-toggle" id="menuToggle" type="button">화면 변경</button>
+        <button class="menu-toggle" id="menuToggle" type="button">화면 변경 🔄</button>
       </div>
 
       <nav class="tabs" id="screenTabs" aria-label="화면 변경">
@@ -120,6 +125,45 @@
         <iframe title="티어표" src="./tier/index.html"></iframe>
       </section>
     </main>
+
+    <div class="auth-modal" id="authModal" aria-hidden="true">
+      <section class="auth-card" aria-label="로그인">
+        <button class="auth-close" id="authCloseButton" type="button">닫기</button>
+
+        <div class="auth-pane active" id="loginPane">
+          <h2>로그인</h2>
+          <label for="loginUsername">아이디</label>
+          <input id="loginUsername" type="text" maxlength="20" autocomplete="username" />
+          <label for="loginPassword">비밀번호</label>
+          <div class="password-row">
+            <input id="loginPassword" type="password" autocomplete="current-password" />
+            <button class="ghost" id="toggleLoginPassword" type="button">보기</button>
+          </div>
+          <p class="auth-message" id="loginMessage"></p>
+          <div class="auth-actions">
+            <button class="ghost" id="showSignupButton" type="button">회원가입</button>
+            <button id="loginButton" type="button">로그인</button>
+          </div>
+        </div>
+
+        <div class="auth-pane" id="signupPane">
+          <h2>회원가입</h2>
+          <label for="signupUsername">아이디</label>
+          <input id="signupUsername" type="text" maxlength="20" autocomplete="username" />
+          <label for="signupPassword">비밀번호</label>
+          <div class="password-row">
+            <input id="signupPassword" type="password" autocomplete="new-password" />
+            <button class="ghost" id="toggleSignupPassword" type="button">보기</button>
+          </div>
+          <p class="auth-message" id="signupMessage"></p>
+          <div class="auth-actions">
+            <button class="ghost" id="showLoginButton" type="button">로그인으로</button>
+            <button id="signupButton" type="button">가입하기</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
     <script src="./app.js"></script>
   </body>
 </html>
