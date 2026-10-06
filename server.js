@@ -15,7 +15,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`NAZUN 내전 운영실: http://localhost:${port}`);
+  console.log(`내전서버 관리: http://localhost:${port}`);
 });
 
 function serveStatic(rawPath, res) {

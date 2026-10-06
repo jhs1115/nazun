@@ -2048,3 +2048,36 @@
       color: #284b80;
       background: #e8f1ff;
     }
+
+    body.dark-mode .auction-card {
+      color: #182033;
+      background: linear-gradient(145deg, #ffffff, #f1f6ff);
+      border-color: #cdd9ef;
+      box-shadow: 0 16px 34px rgba(0, 0, 0, 0.3);
+    }
+
+    body.dark-mode .auction-card .field-group label,
+    body.dark-mode .auction-card .auction-board-title,
+    body.dark-mode .auction-card .auction-message,
+    body.dark-mode .auction-card .empty-message {
+      color: #66748a;
+    }
+
+    body.dark-mode .team-card .stat-box,
+    body.dark-mode .auction-card .auction-input,
+    body.dark-mode .auction-card .auction-select,
+    body.dark-mode .auction-card .award-system,
+    body.dark-mode .auction-card .auction-bid-list {
+      color: #182033;
+      background: #ffffff;
+      border-color: #cdd9ef;
+    }
+
+    body.dark-mode .team-card .stat-box span,
+    body.dark-mode .auction-card .award-system span {
+      color: #66748a;
+    }
+
+    body.dark-mode .auction-card .award-system strong {
+      color: #182033;
+    }

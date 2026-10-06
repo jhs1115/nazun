@@ -1,5 +1,9 @@
 const els = {
   authOpenButton: document.querySelector("#authOpenButton"),
+  userMenu: document.querySelector("#userMenu"),
+  openRenameButton: document.querySelector("#openRenameButton"),
+  logoutButton: document.querySelector("#logoutButton"),
+  patchNoteButton: document.querySelector("#patchNoteButton"),
   themeToggle: document.querySelector("#themeToggle"),
   menuToggle: document.querySelector("#menuToggle"),
   screenTabs: document.querySelector("#screenTabs"),
@@ -17,6 +21,8 @@ const els = {
   redTeamInput: document.querySelector("#redTeamInput"),
   winnerInput: document.querySelector("#winnerInput"),
   matchMemoInput: document.querySelector("#matchMemoInput"),
+  matchFormMessage: document.querySelector("#matchFormMessage"),
+  resetRankingButton: document.querySelector("#resetRankingButton"),
   clearMatchesButton: document.querySelector("#clearMatchesButton"),
   rankingTable: document.querySelector("#rankingTable"),
   historyList: document.querySelector("#historyList"),
@@ -41,10 +47,21 @@ const els = {
   adminPasswordInput: document.querySelector("#adminPasswordInput"),
   adminUnlockButton: document.querySelector("#adminUnlockButton"),
   adminMessage: document.querySelector("#adminMessage"),
+  patchModal: document.querySelector("#patchModal"),
+  patchCloseButton: document.querySelector("#patchCloseButton"),
+  renameModal: document.querySelector("#renameModal"),
+  renameCloseButton: document.querySelector("#renameCloseButton"),
+  renameCancelButton: document.querySelector("#renameCancelButton"),
+  renameSaveButton: document.querySelector("#renameSaveButton"),
+  renameNameInput: document.querySelector("#renameNameInput"),
+  renamePasswordInput: document.querySelector("#renamePasswordInput"),
+  renameMessage: document.querySelector("#renameMessage"),
 };
 
 const PLAYER_STORE_KEY = "nazun-players-v2";
 const MATCH_STORE_KEY = "nazun-matches";
+const MATCH_TABLE = "nazun_matches";
+const COMMENT_TABLE = "nazun_match_comments";
 const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
 const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
 const supabaseClient = SUPABASE_READY
@@ -57,7 +74,10 @@ const state = {
   matches: readStore(MATCH_STORE_KEY, []),
   currentUser: null,
   editingPlayerIndex: null,
-  adminUnlocked: sessionStorage.getItem("nazun-admin-unlocked") === "1",
+  adminUnlocked: false,
+  openComments: new Set(),
+  remoteMatchesReady: false,
+  realtimeChannel: null,
 };
 
 const ADMIN_PASSWORD = "jhs081115jhs";
@@ -95,6 +115,60 @@ function splitNames(value) {
     .filter(Boolean);
 }
 
+function playerByName(name) {
+  return state.players.find((player) => player.name === name);
+}
+
+function getMatchId(match) {
+  if (!match.id) {
+    match.id = `match-${match.createdAt || Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+  return match.id;
+}
+
+function normalizeRemoteMatch(row, commentsByMatch) {
+  return {
+    id: row.id,
+    blue: Array.isArray(row.blue) ? row.blue : [],
+    red: Array.isArray(row.red) ? row.red : [],
+    winner: row.winner === "red" ? "red" : "blue",
+    memo: row.memo || "",
+    createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+    comments: commentsByMatch.get(row.id) || [],
+  };
+}
+
+function matchToRemoteRow(match) {
+  return {
+    id: getMatchId(match),
+    blue: match.blue,
+    red: match.red,
+    winner: match.winner,
+    memo: match.memo || "",
+    created_at: new Date(match.createdAt || Date.now()).toISOString(),
+  };
+}
+
+function commentToRemoteRow(match, comment) {
+  return {
+    id: comment.id,
+    match_id: getMatchId(match),
+    user_id: state.currentUser?.id || null,
+    author: comment.author || getUserLabel(state.currentUser) || "익명",
+    message: comment.text,
+    created_at: new Date(comment.createdAt || Date.now()).toISOString(),
+  };
+}
+
+function findDuplicateName(names) {
+  const seen = new Set();
+  for (const name of names) {
+    if (seen.has(name)) return name;
+    seen.add(name);
+  }
+  return "";
+}
+
 function activateView(name) {
   if (name === "admin" && !state.adminUnlocked) {
     els.adminPasswordInput.value = "";
@@ -116,6 +190,31 @@ function closeAuth() {
   els.authModal.setAttribute("aria-hidden", "true");
 }
 
+function openRenameModal() {
+  els.userMenu.classList.remove("open");
+  els.renameNameInput.value = getUserLabel(state.currentUser);
+  els.renamePasswordInput.value = "";
+  setMessage(els.renameMessage, "");
+  els.renameModal.classList.add("open");
+  els.renameModal.setAttribute("aria-hidden", "false");
+  els.renameNameInput.focus();
+}
+
+function closeRenameModal() {
+  els.renameModal.classList.remove("open");
+  els.renameModal.setAttribute("aria-hidden", "true");
+}
+
+function openPatchNotes() {
+  els.patchModal.classList.add("open");
+  els.patchModal.setAttribute("aria-hidden", "false");
+}
+
+function closePatchNotes() {
+  els.patchModal.classList.remove("open");
+  els.patchModal.setAttribute("aria-hidden", "true");
+}
+
 function showAuthPane(mode) {
   const signup = mode === "signup";
   els.loginPane.classList.toggle("active", !signup);
@@ -131,7 +230,7 @@ function togglePassword(input, button) {
 }
 
 function getUserLabel(user) {
-  return user?.user_metadata?.display_name || user?.email || "";
+  return user?.user_metadata?.display_name || user?.email?.split("@")[0] || "";
 }
 
 function setCurrentUser(user) {
@@ -142,9 +241,10 @@ function setCurrentUser(user) {
 function renderAuth() {
   const label = getUserLabel(state.currentUser);
   if (label) {
-    els.authOpenButton.textContent = `${label} 로그아웃`;
+    els.authOpenButton.textContent = label;
   } else {
     els.authOpenButton.textContent = "로그인";
+    els.userMenu.classList.remove("open");
   }
 }
 
@@ -223,7 +323,53 @@ async function logout() {
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
   }
+  els.userMenu.classList.remove("open");
   setCurrentUser(null);
+}
+
+async function renameUser() {
+  if (!state.currentUser?.email) {
+    closeRenameModal();
+    openAuth("login");
+    return;
+  }
+  if (!checkSupabaseReady(els.renameMessage)) return;
+
+  const nextName = els.renameNameInput.value.trim();
+  const password = els.renamePasswordInput.value;
+  if (!nextName || !password) {
+    setMessage(els.renameMessage, "변경할 이름과 비밀번호를 입력하세요.", true);
+    return;
+  }
+  if (nextName.length > 18) {
+    setMessage(els.renameMessage, "이름은 18자 이하로 입력하세요.", true);
+    return;
+  }
+
+  els.renameSaveButton.disabled = true;
+  const loginResult = await supabaseClient.auth.signInWithPassword({
+    email: state.currentUser.email,
+    password,
+  });
+
+  if (loginResult.error) {
+    els.renameSaveButton.disabled = false;
+    setMessage(els.renameMessage, "비밀번호가 맞지 않습니다.", true);
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.updateUser({
+    data: { display_name: nextName },
+  });
+  els.renameSaveButton.disabled = false;
+
+  if (error) {
+    setMessage(els.renameMessage, error.message, true);
+    return;
+  }
+
+  setCurrentUser(data.user);
+  closeRenameModal();
 }
 
 async function initAuth() {
@@ -237,6 +383,82 @@ async function initAuth() {
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     setCurrentUser(session?.user || null);
   });
+}
+
+async function loadRemoteMatches(showMessage = false) {
+  if (!supabaseClient) return false;
+
+  const [matchesResult, commentsResult] = await Promise.all([
+    supabaseClient.from(MATCH_TABLE).select("*").order("created_at", { ascending: false }),
+    supabaseClient.from(COMMENT_TABLE).select("*").order("created_at", { ascending: true }),
+  ]);
+
+  if (matchesResult.error || commentsResult.error) {
+    state.remoteMatchesReady = false;
+    if (showMessage && els.matchFormMessage) {
+      setMessage(els.matchFormMessage, "Supabase 테이블을 먼저 만들어야 공유가 됩니다.", true);
+    }
+    return false;
+  }
+
+  const commentsByMatch = new Map();
+  for (const row of commentsResult.data || []) {
+    const list = commentsByMatch.get(row.match_id) || [];
+    list.push({
+      id: row.id,
+      author: row.author || "익명",
+      text: row.message || "",
+      createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+    });
+    commentsByMatch.set(row.match_id, list);
+  }
+
+  state.remoteMatchesReady = true;
+  state.matches = (matchesResult.data || []).map((row) => normalizeRemoteMatch(row, commentsByMatch));
+  saveMatches();
+  renderManager();
+  return true;
+}
+
+function subscribeRemoteMatches() {
+  if (!supabaseClient || state.realtimeChannel) return;
+  state.realtimeChannel = supabaseClient
+    .channel("nazun-match-updates")
+    .on("postgres_changes", { event: "*", schema: "public", table: MATCH_TABLE }, () => loadRemoteMatches())
+    .on("postgres_changes", { event: "*", schema: "public", table: COMMENT_TABLE }, () => loadRemoteMatches())
+    .subscribe();
+}
+
+async function saveRemoteMatch(match) {
+  if (!supabaseClient) return false;
+  const { error } = await supabaseClient.from(MATCH_TABLE).insert(matchToRemoteRow(match));
+  if (error) {
+    state.remoteMatchesReady = false;
+    setMessage(els.matchFormMessage, "Supabase 저장 실패: 테이블을 확인하세요.", true);
+    return false;
+  }
+  state.remoteMatchesReady = true;
+  return true;
+}
+
+async function clearRemoteMatches() {
+  if (!supabaseClient) return false;
+  const { error } = await supabaseClient.from(MATCH_TABLE).delete().not("id", "is", null);
+  if (error) {
+    setMessage(els.matchFormMessage, "Supabase 삭제 실패: 권한을 확인하세요.", true);
+    return false;
+  }
+  return true;
+}
+
+async function saveRemoteComment(match, comment) {
+  if (!supabaseClient) return false;
+  const { error } = await supabaseClient.from(COMMENT_TABLE).insert(commentToRemoteRow(match, comment));
+  if (error) {
+    alert("댓글 공유 저장에 실패했습니다. Supabase 테이블을 확인하세요.");
+    return false;
+  }
+  return true;
 }
 
 function toggleTheme() {
@@ -343,11 +565,15 @@ function renderRankings() {
   els.rankingTable.replaceChildren(
     ...rows.map((row, index) => {
       const winRate = row.games ? Math.round((row.win / row.games) * 100) : 0;
+      const player = playerByName(row.name);
+      const tierBadge = player
+        ? `<span class="tier-badge rank-tier ${tierClass(player.tier)}">${escapeHtml(player.tier)}</span>`
+        : "";
       const el = document.createElement("div");
       el.className = "rank-row";
       el.innerHTML = `
         <div>
-          <strong>${index + 1}. ${escapeHtml(row.name)}</strong>
+          <strong>${index + 1}. ${escapeHtml(row.name)} ${tierBadge}</strong>
           <div class="rank-meta">${row.games}전 ${row.win}승 ${row.loss}패 · 승률 ${winRate}%</div>
         </div>
         <span>${row.win}W</span>
@@ -360,16 +586,49 @@ function renderRankings() {
 function renderHistory() {
   els.historyList.replaceChildren(
     ...state.matches.map((match, index) => {
+      const matchId = getMatchId(match);
+      const comments = Array.isArray(match.comments) ? match.comments : [];
+      const isOpen = state.openComments.has(matchId);
       const el = document.createElement("div");
-      el.className = "history-row";
+      el.className = `history-row ${isOpen ? "comments-open" : ""}`;
       const winner = match.winner === "blue" ? "블루팀" : "레드팀";
+      const winnerClass = match.winner === "blue" ? "blue" : "red";
       el.innerHTML = `
-        <div>
-          <strong>${winner} 승리</strong>
-          <div class="history-meta">블루: ${escapeHtml(match.blue.join(", "))}<br />레드: ${escapeHtml(match.red.join(", "))}</div>
-          <div class="history-meta">${escapeHtml(match.memo || "메모 없음")}</div>
+        <div class="history-main">
+          <div class="history-content">
+            <strong class="history-title"><span class="history-team ${winnerClass}">${winner}</span> 승리</strong>
+            <div class="history-meta history-teams">
+              <span class="history-team blue">블루팀</span> : ${escapeHtml(match.blue.join(", "))}<br />
+              <span class="history-team red">레드팀</span> : ${escapeHtml(match.red.join(", "))}
+            </div>
+            <div class="history-memo">메모 : ${escapeHtml(match.memo || "없음")}</div>
+          </div>
+          <button class="ghost comment-toggle" type="button" data-toggle-comments="${index}">${isOpen ? "접기" : `댓글 ${comments.length}`}</button>
         </div>
-        <button class="ghost" type="button" data-remove-match="${index}">삭제</button>
+        ${
+          isOpen
+            ? `
+              <div class="comments-panel">
+                <div class="comment-list">
+                  ${
+                    comments.length
+                      ? comments.map((comment) => `
+                          <article class="comment-item">
+                            <strong>${escapeHtml(comment.author || "익명")}</strong>
+                            <p>${escapeHtml(comment.text || "")}</p>
+                          </article>
+                        `).join("")
+                      : `<div class="empty comment-empty">댓글이 없습니다.</div>`
+                  }
+                </div>
+                <form class="comment-form" data-comment-form="${index}">
+                  <input name="comment" maxlength="160" placeholder="댓글 입력" autocomplete="off" />
+                  <button type="submit">등록</button>
+                </form>
+              </div>
+            `
+            : ""
+        }
       `;
       return el;
     })
@@ -399,18 +658,47 @@ function saveMatches() {
   writeStore(MATCH_STORE_KEY, state.matches);
 }
 
+async function clearMatchRecords(message = "") {
+  state.matches = [];
+  saveMatches();
+  if (state.remoteMatchesReady) {
+    await clearRemoteMatches();
+  }
+  if (message) {
+    setMessage(els.matchFormMessage, message);
+  }
+  renderManager();
+}
+
 els.menuToggle.addEventListener("click", () => {
   els.screenTabs.classList.toggle("open");
 });
 
 els.themeToggle.addEventListener("click", toggleTheme);
+els.patchNoteButton.addEventListener("click", openPatchNotes);
+els.patchCloseButton.addEventListener("click", closePatchNotes);
+els.patchModal.addEventListener("click", (event) => {
+  if (event.target === els.patchModal) closePatchNotes();
+});
 
 els.authOpenButton.addEventListener("click", () => {
   if (state.currentUser) {
-    logout();
+    els.userMenu.classList.toggle("open");
     return;
   }
   openAuth("login");
+});
+
+els.openRenameButton.addEventListener("click", openRenameModal);
+els.logoutButton.addEventListener("click", logout);
+els.renameCloseButton.addEventListener("click", closeRenameModal);
+els.renameCancelButton.addEventListener("click", closeRenameModal);
+els.renameSaveButton.addEventListener("click", renameUser);
+els.renamePasswordInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") renameUser();
+});
+els.renameModal.addEventListener("click", (event) => {
+  if (event.target === els.renameModal) closeRenameModal();
 });
 
 els.authCloseButton.addEventListener("click", closeAuth);
@@ -439,6 +727,9 @@ document.querySelectorAll(".tool-view iframe").forEach((frame) => {
 document.addEventListener("click", (event) => {
   if (event.target.closest(".screen-menu") || event.target.closest("#screenTabs")) return;
   els.screenTabs.classList.remove("open");
+  if (!event.target.closest(".user-menu-wrap")) {
+    els.userMenu.classList.remove("open");
+  }
 });
 
 els.playerForm.addEventListener("submit", (event) => {
@@ -491,7 +782,6 @@ els.adminUnlockButton.addEventListener("click", () => {
     return;
   }
   state.adminUnlocked = true;
-  sessionStorage.setItem("nazun-admin-unlocked", "1");
   setMessage(els.adminMessage, "");
   renderManager();
 });
@@ -500,39 +790,106 @@ els.adminPasswordInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") els.adminUnlockButton.click();
 });
 
-els.inhouseMatchForm.addEventListener("submit", (event) => {
+els.inhouseMatchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const blue = splitNames(els.blueTeamInput.value);
   const red = splitNames(els.redTeamInput.value);
-  if (!blue.length || !red.length) return;
-  state.matches.unshift({
+  const allNames = [...blue, ...red];
+  const duplicateName = findDuplicateName(allNames);
+  const missingName = allNames.find((name) => !playerByName(name));
+
+  if (!blue.length || !red.length) {
+    setMessage(els.matchFormMessage, "블루팀과 레드팀을 모두 입력하세요.", true);
+    return;
+  }
+  if (duplicateName) {
+    setMessage(els.matchFormMessage, `${duplicateName} 이름이 중복되어 있습니다.`, true);
+    return;
+  }
+  if (missingName) {
+    setMessage(els.matchFormMessage, `${missingName}은 멤버 명단에 없습니다.`, true);
+    return;
+  }
+
+  const nextMatch = {
+    id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     blue,
     red,
     winner: els.winnerInput.value,
     memo: els.matchMemoInput.value.trim(),
     createdAt: Date.now(),
-  });
+    comments: [],
+  };
+  state.matches.unshift(nextMatch);
   els.blueTeamInput.value = "";
   els.redTeamInput.value = "";
   els.matchMemoInput.value = "";
+  setMessage(els.matchFormMessage, "경기 결과를 저장했습니다.");
   saveMatches();
   renderManager();
+  const saved = await saveRemoteMatch(nextMatch);
+  if (saved) {
+    await loadRemoteMatches();
+  }
 });
 
 els.historyList.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-remove-match]");
-  if (!button) return;
-  state.matches.splice(Number(button.dataset.removeMatch), 1);
-  saveMatches();
+  const toggleButton = event.target.closest("[data-toggle-comments]");
+  if (!toggleButton) return;
+  const match = state.matches[Number(toggleButton.dataset.toggleComments)];
+  if (!match) return;
+  const matchId = getMatchId(match);
+  if (state.openComments.has(matchId)) {
+    state.openComments.delete(matchId);
+  } else {
+    state.openComments.add(matchId);
+  }
   renderManager();
 });
 
-els.clearMatchesButton.addEventListener("click", () => {
-  state.matches = [];
+els.historyList.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-comment-form]");
+  if (!form) return;
+  event.preventDefault();
+
+  if (!state.currentUser) {
+    openAuth("login");
+    return;
+  }
+
+  const match = state.matches[Number(form.dataset.commentForm)];
+  const input = form.elements.comment;
+  const text = input.value.trim();
+  if (!match || !text) return;
+
+  match.comments = Array.isArray(match.comments) ? match.comments : [];
+  const comment = {
+    id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    author: getUserLabel(state.currentUser),
+    text,
+    createdAt: Date.now(),
+  };
+  match.comments.push(comment);
+  state.openComments.add(getMatchId(match));
+  input.value = "";
   saveMatches();
   renderManager();
+  const saved = await saveRemoteComment(match, comment);
+  if (saved) {
+    await loadRemoteMatches();
+  }
+});
+
+els.clearMatchesButton.addEventListener("click", () => {
+  clearMatchRecords("경기 기록을 모두 삭제했습니다.");
+});
+
+els.resetRankingButton.addEventListener("click", () => {
+  clearMatchRecords("랭킹을 초기화했습니다.");
 });
 
 initTheme();
 initAuth();
 renderManager();
+loadRemoteMatches();
+subscribeRemoteMatches();

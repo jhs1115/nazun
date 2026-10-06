@@ -39,6 +39,10 @@ body.dark-mode {
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -79,9 +83,15 @@ button {
   gap: 8px;
 }
 
+.user-menu-wrap {
+  position: relative;
+}
+
 .auth-button,
+.patch-button,
 .theme-toggle {
   min-height: 40px;
+  max-width: 180px;
   padding: 0 13px;
   border-radius: 14px;
   color: var(--text);
@@ -89,13 +99,51 @@ button {
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 body.dark-mode .auth-button,
+body.dark-mode .patch-button,
 body.dark-mode .theme-toggle {
   background: #111827;
   color: #ffffff;
   border-color: #111827;
+}
+
+.user-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  display: none;
+  width: 138px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-hover);
+}
+
+.user-menu.open {
+  display: grid;
+  gap: 6px;
+}
+
+.user-menu button {
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 11px;
+  color: var(--text);
+  text-align: left;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  font-weight: 900;
+}
+
+body.dark-mode .user-menu {
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .app-shell {
@@ -231,6 +279,10 @@ h2 {
   margin-top: 14px;
 }
 
+.single-grid {
+  grid-template-columns: 1fr;
+}
+
 .manager-grid .panel {
   padding: 18px;
 }
@@ -257,6 +309,10 @@ h2 {
 }
 
 .match-form button {
+  grid-column: 1 / -1;
+}
+
+.match-message {
   grid-column: 1 / -1;
 }
 
@@ -320,7 +376,9 @@ textarea:focus {
   font-weight: 900;
 }
 
-.auth-modal {
+.auth-modal,
+.patch-modal,
+.rename-modal {
   position: fixed;
   inset: 0;
   z-index: 80;
@@ -331,11 +389,14 @@ textarea:focus {
   backdrop-filter: blur(8px);
 }
 
-.auth-modal.open {
+.auth-modal.open,
+.patch-modal.open,
+.rename-modal.open {
   display: grid;
 }
 
-.auth-card {
+.auth-card,
+.patch-card {
   position: relative;
   width: min(100%, 420px);
   padding: 24px;
@@ -345,8 +406,14 @@ textarea:focus {
   box-shadow: var(--shadow-hover);
 }
 
-body.dark-mode .auth-card {
+body.dark-mode .auth-card,
+body.dark-mode .patch-card {
   background: rgba(255, 255, 255, 0.96);
+}
+
+.patch-card {
+  width: min(100% - 28px, 860px);
+  min-height: 520px;
 }
 
 .auth-close {
@@ -417,7 +484,19 @@ body.dark-mode .auth-card {
 }
 
 .player-list {
-  max-height: 390px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ranking-table {
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.history-list {
+  max-height: 620px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -439,6 +518,27 @@ body.dark-mode .auth-card {
   background: linear-gradient(145deg, #ffffff, var(--surface-soft));
 }
 
+.history-row {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.history-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.history-content {
+  min-width: 0;
+}
+
+.comment-toggle {
+  min-width: 74px;
+  align-self: start;
+}
+
 .row-actions {
   display: flex;
   gap: 6px;
@@ -451,6 +551,97 @@ body.dark-mode .auth-card {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.history-title {
+  font-size: 18px;
+  font-weight: 1000;
+}
+
+.history-teams {
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.history-memo {
+  margin-top: 12px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 950;
+  line-height: 1.5;
+}
+
+.history-team.blue {
+  color: #386fcb;
+}
+
+.history-team.red {
+  color: #d54747;
+}
+
+.comments-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.comment-list {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.comment-item {
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.comment-item strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--blue-strong);
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.comment-item p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.comment-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  gap: 8px;
+}
+
+.comment-form button {
+  min-height: 42px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue-strong), #7f69d6);
+  font-weight: 900;
+}
+
+.comment-empty {
+  padding: 18px;
+}
+
+.rank-tier {
+  margin-left: 6px;
+  transform: translateY(-1px);
+  font-size: 11px;
 }
 
 .tier-badge {
@@ -534,6 +725,11 @@ body.dark-mode .auth-card {
 
 .admin-content .panel {
   padding: 18px;
+}
+
+.admin-content {
+  display: grid;
+  gap: 14px;
 }
 
 .tool-view {

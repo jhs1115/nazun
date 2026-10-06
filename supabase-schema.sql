@@ -1,0 +1,82 @@
+create table if not exists public.nazun_matches (
+  id text primary key,
+  blue text[] not null default '{}',
+  red text[] not null default '{}',
+  winner text not null check (winner in ('blue', 'red')),
+  memo text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.nazun_match_comments (
+  id text primary key,
+  match_id text not null references public.nazun_matches(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  author text not null default '익명',
+  message text not null check (char_length(message) between 1 and 160),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists nazun_matches_created_at_idx
+on public.nazun_matches(created_at desc);
+
+create index if not exists nazun_match_comments_match_created_idx
+on public.nazun_match_comments(match_id, created_at asc);
+
+alter table public.nazun_matches enable row level security;
+alter table public.nazun_match_comments enable row level security;
+
+drop policy if exists "nazun matches visible" on public.nazun_matches;
+create policy "nazun matches visible"
+on public.nazun_matches for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun matches writable by logged in users" on public.nazun_matches;
+create policy "nazun matches writable by logged in users"
+on public.nazun_matches for insert
+to authenticated
+with check (true);
+
+drop policy if exists "nazun matches deletable by logged in users" on public.nazun_matches;
+create policy "nazun matches deletable by logged in users"
+on public.nazun_matches for delete
+to authenticated
+using (true);
+
+drop policy if exists "nazun comments visible" on public.nazun_match_comments;
+create policy "nazun comments visible"
+on public.nazun_match_comments for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun comments writable by logged in users" on public.nazun_match_comments;
+create policy "nazun comments writable by logged in users"
+on public.nazun_match_comments for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+alter table public.nazun_matches replica identity full;
+alter table public.nazun_match_comments replica identity full;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'nazun_matches'
+  ) then
+    alter publication supabase_realtime add table public.nazun_matches;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'nazun_match_comments'
+  ) then
+    alter publication supabase_realtime add table public.nazun_match_comments;
+  end if;
+end $$;
