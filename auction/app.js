@@ -2353,6 +2353,11 @@
       document.getElementById("resetConfirmModal").classList.remove("open");
       state = createInitialState();
       localStorage.removeItem(getStorageKey());
+      auctionPlayerSelect.value = state.players[0]?.id || "";
+      auctionTeamSelect.value = state.teams[0]?.id || "";
+      auctionBidInput.value = getMinBid(state.players[0]?.name);
+      auctionBidSlider.value = auctionBidInput.value;
+      showAuctionMessage("전체 초기화가 완료되었습니다.", "success");
       render();
     }
 

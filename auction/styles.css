@@ -1896,3 +1896,131 @@
         grid-template-columns: 1fr;
       }
     }
+
+    body.dark-mode {
+      --bg: #070b12;
+      --surface: #151b26;
+      --surface-soft: #101722;
+      --line: #2f3b50;
+      --text: #f4f7fb;
+      --muted: #aebbd0;
+      --blue: #8fb5ff;
+      --blue-strong: #7fa8f4;
+      --purple: #a893f1;
+      --purple-soft: #251f3a;
+      --gold-soft: #3a2d12;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(127, 168, 244, 0.14), transparent 28%),
+        radial-gradient(circle at 88% 8%, rgba(168, 147, 241, 0.12), transparent 30%),
+        var(--bg);
+    }
+
+    body.dark-mode .mode-card,
+    body.dark-mode .team-card,
+    body.dark-mode .panel-card,
+    body.dark-mode .auction-card,
+    body.dark-mode .modal-card,
+    body.dark-mode .rule-modal-content section {
+      color: var(--text);
+      background: rgba(21, 27, 38, 0.96);
+      border-color: var(--line);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
+    }
+
+    body.dark-mode .title-area p,
+    body.dark-mode .section-title span,
+    body.dark-mode .field-group label,
+    body.dark-mode .auction-board-title,
+    body.dark-mode .auction-player-detail span,
+    body.dark-mode .auction-player-button span,
+    body.dark-mode .auction-team-button span,
+    body.dark-mode .rule-modal-content p,
+    body.dark-mode .empty-message {
+      color: var(--muted);
+    }
+
+    body.dark-mode .back-button,
+    body.dark-mode .ghost-button {
+      color: #dce7f8;
+      background: #1c2635;
+      border: 1px solid var(--line);
+    }
+
+    body.dark-mode .mode-button,
+    body.dark-mode .auction-player-button,
+    body.dark-mode .auction-team-button,
+    body.dark-mode .auction-bid-item,
+    body.dark-mode .player-card,
+    body.dark-mode .situation-player {
+      color: #182033;
+      background: linear-gradient(145deg, #ffffff, #eef4ff);
+      border-color: #cdd9ef;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+    }
+
+    body.dark-mode .auction-player-button.selected,
+    body.dark-mode .auction-team-button.selected,
+    body.dark-mode .auction-player-current {
+      color: #172033;
+      background: linear-gradient(145deg, #eef6ff, #dceaff);
+      border-color: #8fb5ff;
+      box-shadow:
+        0 0 0 3px rgba(143, 181, 255, 0.32),
+        0 14px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    body.dark-mode .auction-player-detail p,
+    body.dark-mode .player-hover-message,
+    body.dark-mode .team-hover-message {
+      color: #27344f;
+      background: rgba(255, 255, 255, 0.98);
+    }
+
+    body.dark-mode .auction-input,
+    body.dark-mode .auction-select,
+    body.dark-mode .score-input {
+      color: #f8fbff;
+      background: #0c1320;
+      border-color: #34425c;
+    }
+
+    body.dark-mode .bid-slider::-webkit-slider-runnable-track {
+      background:
+        linear-gradient(90deg, var(--blue-strong) 0 var(--slider-fill), #29364a var(--slider-fill) 100%);
+    }
+
+    body.dark-mode .bid-slider::-moz-range-track {
+      background: #29364a;
+    }
+
+    body.dark-mode .award-system {
+      background: linear-gradient(145deg, #111827, #182235);
+      border-color: #34425c;
+    }
+
+    body.dark-mode .award-button {
+      color: #f6f2ff;
+      background: #2a2140;
+      border-color: #5b4a86;
+    }
+
+    body.dark-mode .auction-bid-list,
+    body.dark-mode .team-members,
+    body.dark-mode .players-list {
+      background: #0b111c;
+      border-color: #33415a;
+    }
+
+    body.dark-mode .auction-message.success {
+      color: #75d39f;
+    }
+
+    body.dark-mode .auction-message.error {
+      color: #ff8b8b;
+    }
+
+    body.dark-mode .clear-bids-button {
+      color: #ffd4d4;
+      background: #35191d;
+      border-color: #7f333c;
+    }
