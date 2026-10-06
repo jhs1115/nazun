@@ -416,6 +416,16 @@ body.dark-mode .auth-card {
   gap: 10px;
 }
 
+.player-list {
+  max-height: 390px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.admin-player-list {
+  max-height: 520px;
+}
+
 .player-row,
 .rank-row,
 .history-row {
@@ -429,12 +439,101 @@ body.dark-mode .auth-card {
   background: linear-gradient(145deg, #ffffff, var(--surface-soft));
 }
 
+.row-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .player-meta,
 .rank-meta,
 .history-meta {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #20263a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tier-iron {
+  background: #d3d7df;
+}
+
+.tier-bronze {
+  background: #d7a176;
+}
+
+.tier-silver {
+  background: #c8d2df;
+}
+
+.tier-gold {
+  background: #f4ca64;
+}
+
+.tier-platinum {
+  background: #8adbc7;
+}
+
+.tier-emerald {
+  background: #70d797;
+}
+
+.tier-diamond {
+  background: #9bb7e8;
+}
+
+.tier-master {
+  background: #c5a4f4;
+}
+
+.tier-default {
+  background: var(--surface-soft);
+}
+
+.team-label.blue {
+  color: #386fcb;
+}
+
+.team-label.red {
+  color: #d54747;
+}
+
+.admin-lock {
+  width: min(100%, 520px);
+  padding: 22px;
+}
+
+.admin-lock p {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.admin-password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 8px;
+}
+
+.admin-password-row button {
+  min-height: 42px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue-strong), #7f69d6);
+  font-weight: 900;
+}
+
+.admin-content .panel {
+  padding: 18px;
 }
 
 .tool-view {

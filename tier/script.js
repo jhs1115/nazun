@@ -288,6 +288,21 @@ function init() {
   document.addEventListener('click', e => {
     if (!e.target.closest('.stats-panel') && !e.target.closest('.card')) hideStatsPanel();
   });
+  document.getElementById('tierResetButton').addEventListener('click', () => {
+    placements = {};
+    statData = {};
+    localStorage.removeItem('tl_data');
+    localStorage.removeItem('tl_stats_v2');
+    selectedName = null;
+    document.querySelectorAll('.card').forEach(card => card.remove());
+    NAMES.forEach(name => {
+      const card = makeCard(name);
+      setupDrag(card);
+      pool.appendChild(card);
+    });
+    hideStatsPanel();
+    updateHints();
+  });
   hideStatsPanel();
   updateHints();
 }

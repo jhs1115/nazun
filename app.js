@@ -5,13 +5,12 @@ const els = {
   screenTabs: document.querySelector("#screenTabs"),
   tabs: document.querySelectorAll(".tab"),
   views: document.querySelectorAll(".view"),
-  memberCount: document.querySelector("#memberCount"),
-  recordCount: document.querySelector("#recordCount"),
   playerForm: document.querySelector("#playerForm"),
   playerNameInput: document.querySelector("#playerNameInput"),
   playerTierInput: document.querySelector("#playerTierInput"),
   playerLaneInput: document.querySelector("#playerLaneInput"),
   playerList: document.querySelector("#playerList"),
+  adminPlayerList: document.querySelector("#adminPlayerList"),
   clearPlayersButton: document.querySelector("#clearPlayersButton"),
   inhouseMatchForm: document.querySelector("#inhouseMatchForm"),
   blueTeamInput: document.querySelector("#blueTeamInput"),
@@ -37,19 +36,25 @@ const els = {
   showLoginButton: document.querySelector("#showLoginButton"),
   toggleLoginPassword: document.querySelector("#toggleLoginPassword"),
   toggleSignupPassword: document.querySelector("#toggleSignupPassword"),
+  adminLock: document.querySelector("#adminLock"),
+  adminContent: document.querySelector("#adminContent"),
+  adminPasswordInput: document.querySelector("#adminPasswordInput"),
+  adminUnlockButton: document.querySelector("#adminUnlockButton"),
+  adminMessage: document.querySelector("#adminMessage"),
 };
 
+const PLAYER_STORE_KEY = "nazun-players-v2";
+const MATCH_STORE_KEY = "nazun-matches";
+
 const state = {
-  players: readStore("nazun-players", [
-    { name: "감성준", tier: "골드", lane: "Mid" },
-    { name: "힘웃사", tier: "골드", lane: "Jug" },
-    { name: "그그달", tier: "골드", lane: "Adc" },
-    { name: "레전드", tier: "플래티넘", lane: "Adc" },
-    { name: "다람쥐", tier: "플래티넘", lane: "Mid" },
-  ]),
-  matches: readStore("nazun-matches", []),
+  players: readStore(PLAYER_STORE_KEY, []),
+  matches: readStore(MATCH_STORE_KEY, []),
   currentUser: readStore("nazun-current-user", null),
+  editingPlayerIndex: null,
+  adminUnlocked: sessionStorage.getItem("nazun-admin-unlocked") === "1",
 };
+
+const ADMIN_PASSWORD = "jhs081115jhs";
 
 function readStore(key, fallback) {
   try {
@@ -93,6 +98,10 @@ function splitNames(value) {
 }
 
 function activateView(name) {
+  if (name === "admin" && !state.adminUnlocked) {
+    els.adminPasswordInput.value = "";
+    setMessage(els.adminMessage, "");
+  }
   els.tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.view === name));
   els.views.forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
   els.screenTabs.classList.remove("open");
@@ -179,33 +188,76 @@ function toggleTheme() {
   document.body.classList.toggle("dark-mode", dark);
   localStorage.setItem("nazun-theme", dark ? "dark" : "light");
   els.themeToggle.textContent = dark ? "라이트모드" : "다크모드";
+  applyToolTheme();
 }
 
 function initTheme() {
   const dark = localStorage.getItem("nazun-theme") === "dark";
   document.body.classList.toggle("dark-mode", dark);
   els.themeToggle.textContent = dark ? "라이트모드" : "다크모드";
+  applyToolTheme();
+}
+
+function applyToolTheme() {
+  const dark = document.body.classList.contains("dark-mode");
+  document.querySelectorAll(".tool-view iframe").forEach((frame) => {
+    try {
+      frame.contentDocument?.body?.classList.toggle("dark-mode", dark);
+    } catch {
+      // Same-origin iframe expected. Ignore until the frame finishes loading.
+    }
+  });
 }
 
 function renderPlayers() {
-  els.memberCount.textContent = `${state.players.length}명`;
-  els.playerList.replaceChildren(
-    ...state.players.map((player, index) => {
+  const publicRows = state.players.map((player) => {
+    const row = document.createElement("div");
+    row.className = "player-row";
+    row.innerHTML = `
+      <div>
+        <strong>${escapeHtml(player.name)}</strong>
+        <div class="player-meta"><span class="tier-badge ${tierClass(player.tier)}">${escapeHtml(player.tier)}</span> · ${escapeHtml(player.lane)}</div>
+      </div>
+    `;
+    return row;
+  });
+  els.playerList.replaceChildren(...publicRows);
+
+  const adminRows = state.players.map((player, index) => {
       const row = document.createElement("div");
       row.className = "player-row";
       row.innerHTML = `
         <div>
           <strong>${escapeHtml(player.name)}</strong>
-          <div class="player-meta">${escapeHtml(player.tier)} · ${escapeHtml(player.lane)}</div>
+          <div class="player-meta"><span class="tier-badge ${tierClass(player.tier)}">${escapeHtml(player.tier)}</span> · ${escapeHtml(player.lane)}</div>
         </div>
-        <button class="ghost" type="button" data-remove-player="${index}">삭제</button>
+        <div class="row-actions">
+          <button class="ghost" type="button" data-edit-player="${index}">수정</button>
+          <button class="ghost" type="button" data-remove-player="${index}">삭제</button>
+        </div>
       `;
       return row;
-    })
-  );
+  });
+  els.adminPlayerList.replaceChildren(...adminRows);
+
   if (!state.players.length) {
     els.playerList.innerHTML = `<div class="empty">참가자를 추가하세요.</div>`;
+    els.adminPlayerList.innerHTML = `<div class="empty">참가자를 추가하세요.</div>`;
   }
+}
+
+function tierClass(tier) {
+  const map = {
+    "아이언": "tier-iron",
+    "브론즈": "tier-bronze",
+    "실버": "tier-silver",
+    "골드": "tier-gold",
+    "플래티넘": "tier-platinum",
+    "에메랄드": "tier-emerald",
+    "다이아": "tier-diamond",
+    "마스터+": "tier-master",
+  };
+  return map[tier] || "tier-default";
 }
 
 function renderRankings() {
@@ -250,7 +302,6 @@ function renderRankings() {
 }
 
 function renderHistory() {
-  els.recordCount.textContent = `${state.matches.length}경기`;
   els.historyList.replaceChildren(
     ...state.matches.map((match, index) => {
       const el = document.createElement("div");
@@ -272,18 +323,24 @@ function renderHistory() {
   }
 }
 
+function renderAdmin() {
+  els.adminLock.hidden = state.adminUnlocked;
+  els.adminContent.hidden = !state.adminUnlocked;
+}
+
 function renderManager() {
   renderPlayers();
   renderRankings();
   renderHistory();
+  renderAdmin();
 }
 
 function savePlayers() {
-  writeStore("nazun-players", state.players);
+  writeStore(PLAYER_STORE_KEY, state.players);
 }
 
 function saveMatches() {
-  writeStore("nazun-matches", state.matches);
+  writeStore(MATCH_STORE_KEY, state.matches);
 }
 
 els.menuToggle.addEventListener("click", () => {
@@ -319,6 +376,10 @@ els.authModal.addEventListener("click", (event) => {
 
 els.tabs.forEach((tab) => tab.addEventListener("click", () => activateView(tab.dataset.view)));
 
+document.querySelectorAll(".tool-view iframe").forEach((frame) => {
+  frame.addEventListener("load", applyToolTheme);
+});
+
 document.addEventListener("click", (event) => {
   if (event.target.closest(".screen-menu") || event.target.closest("#screenTabs")) return;
   els.screenTabs.classList.remove("open");
@@ -328,16 +389,36 @@ els.playerForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const name = els.playerNameInput.value.trim();
   if (!name) return;
-  state.players.push({ name, tier: els.playerTierInput.value, lane: els.playerLaneInput.value });
+  const nextPlayer = { name, tier: els.playerTierInput.value, lane: els.playerLaneInput.value };
+  if (state.editingPlayerIndex === null) {
+    state.players.push(nextPlayer);
+  } else {
+    state.players[state.editingPlayerIndex] = nextPlayer;
+    state.editingPlayerIndex = null;
+    els.playerForm.querySelector("button").textContent = "추가";
+  }
   els.playerNameInput.value = "";
   savePlayers();
   renderManager();
 });
 
-els.playerList.addEventListener("click", (event) => {
+els.adminPlayerList.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-edit-player]");
+  if (editButton) {
+    const index = Number(editButton.dataset.editPlayer);
+    const player = state.players[index];
+    state.editingPlayerIndex = index;
+    els.playerNameInput.value = player.name;
+    els.playerTierInput.value = player.tier;
+    els.playerLaneInput.value = player.lane;
+    els.playerForm.querySelector("button").textContent = "수정 완료";
+    return;
+  }
   const button = event.target.closest("[data-remove-player]");
   if (!button) return;
   state.players.splice(Number(button.dataset.removePlayer), 1);
+  state.editingPlayerIndex = null;
+  els.playerForm.querySelector("button").textContent = "추가";
   savePlayers();
   renderManager();
 });
@@ -346,6 +427,21 @@ els.clearPlayersButton.addEventListener("click", () => {
   state.players = [];
   savePlayers();
   renderManager();
+});
+
+els.adminUnlockButton.addEventListener("click", () => {
+  if (els.adminPasswordInput.value !== ADMIN_PASSWORD) {
+    setMessage(els.adminMessage, "비밀번호가 맞지 않습니다.", true);
+    return;
+  }
+  state.adminUnlocked = true;
+  sessionStorage.setItem("nazun-admin-unlocked", "1");
+  setMessage(els.adminMessage, "");
+  renderManager();
+});
+
+els.adminPasswordInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") els.adminUnlockButton.click();
 });
 
 els.inhouseMatchForm.addEventListener("submit", (event) => {

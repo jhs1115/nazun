@@ -19,6 +19,22 @@
       --max-width: 1480px;
     }
 
+    body.dark-mode {
+      --bg: #080a0f;
+      --surface: #10131b;
+      --surface-soft: #151a24;
+      --line: #273044;
+      --text: #eef2ff;
+      --muted: #b4bfd4;
+      --blue: #7ea5e8;
+      --blue-strong: #8fb5ff;
+      --purple: #b7a2ff;
+      --purple-soft: #201a32;
+      --gold-soft: #2d2512;
+      --shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      --shadow-hover: 0 16px 38px rgba(0, 0, 0, 0.45);
+    }
+
     * {
       box-sizing: border-box;
     }

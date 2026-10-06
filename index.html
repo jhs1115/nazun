@@ -22,54 +22,17 @@
         <button class="tab active" type="button" data-view="inhouse">내전 관리</button>
         <button class="tab" type="button" data-view="auction">경매</button>
         <button class="tab" type="button" data-view="tier">티어표</button>
+        <button class="tab" type="button" data-view="admin">참가자 관리</button>
       </nav>
 
       <section class="view active" id="inhouseView">
-        <section class="command-strip">
-          <article class="command-card">
-            <span>참가자</span>
-            <strong id="memberCount">0명</strong>
-          </article>
-          <article class="command-card">
-            <span>기록된 경기</span>
-            <strong id="recordCount">0경기</strong>
-          </article>
-          <article class="command-card">
-            <span>운영 도구</span>
-            <strong>경매 / 티어표</strong>
-          </article>
-        </section>
-
         <section class="manager-grid">
           <article class="panel">
             <div class="section-head">
               <div>
-                <h2>참가자 관리</h2>
+                <h2>멤버 명단</h2>
               </div>
-              <button class="ghost" id="clearPlayersButton" type="button">초기화</button>
             </div>
-            <form class="inline-form" id="playerForm">
-              <input id="playerNameInput" placeholder="닉네임" required />
-              <select id="playerTierInput">
-                <option>아이언</option>
-                <option>브론즈</option>
-                <option>실버</option>
-                <option>골드</option>
-                <option>플래티넘</option>
-                <option>에메랄드</option>
-                <option>다이아</option>
-                <option>마스터+</option>
-              </select>
-              <select id="playerLaneInput">
-                <option>탑</option>
-                <option>정글</option>
-                <option>미드</option>
-                <option>원딜</option>
-                <option>서폿</option>
-                <option>상관없음</option>
-              </select>
-              <button type="submit">추가</button>
-            </form>
             <div class="player-list" id="playerList"></div>
           </article>
 
@@ -82,11 +45,11 @@
             </div>
             <form class="match-form" id="inhouseMatchForm">
               <label>
-                <span>블루팀</span>
+                <span class="team-label blue">블루팀</span>
                 <textarea id="blueTeamInput" rows="4" placeholder="한 줄에 한 명씩 입력"></textarea>
               </label>
               <label>
-                <span>레드팀</span>
+                <span class="team-label red">레드팀</span>
                 <textarea id="redTeamInput" rows="4" placeholder="한 줄에 한 명씩 입력"></textarea>
               </label>
               <label>
@@ -123,6 +86,50 @@
 
       <section class="view tool-view" id="tierView">
         <iframe title="티어표" src="./tier/index.html"></iframe>
+      </section>
+
+      <section class="view" id="adminView">
+        <section class="admin-lock panel" id="adminLock">
+          <h2>참가자 관리</h2>
+          <p>관리자 비밀번호를 입력하세요.</p>
+          <div class="admin-password-row">
+            <input id="adminPasswordInput" type="password" placeholder="비밀번호" />
+            <button id="adminUnlockButton" type="button">입장</button>
+          </div>
+          <p class="auth-message" id="adminMessage"></p>
+        </section>
+
+        <section class="admin-content" id="adminContent" hidden>
+          <article class="panel">
+            <div class="section-head">
+              <h2>참가자 관리</h2>
+              <button class="ghost" id="clearPlayersButton" type="button">전체 삭제</button>
+            </div>
+            <form class="inline-form" id="playerForm">
+              <input id="playerNameInput" placeholder="닉네임" required />
+              <select id="playerTierInput">
+                <option>아이언</option>
+                <option>브론즈</option>
+                <option>실버</option>
+                <option>골드</option>
+                <option>플래티넘</option>
+                <option>에메랄드</option>
+                <option>다이아</option>
+                <option>마스터+</option>
+              </select>
+              <select id="playerLaneInput">
+                <option>탑</option>
+                <option>정글</option>
+                <option>미드</option>
+                <option>원딜</option>
+                <option>서폿</option>
+                <option>상관없음</option>
+              </select>
+              <button type="submit">추가</button>
+            </form>
+            <div class="player-list admin-player-list" id="adminPlayerList"></div>
+          </article>
+        </section>
       </section>
     </main>
 
