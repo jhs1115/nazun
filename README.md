@@ -1,39 +1,25 @@
-# NAZUN 내전 허브
+# NAZUN 내전 운영실
 
-친구들끼리 쓰는 롤 내전 통합 사이트입니다.
+친구들끼리 쓰는 롤 내전 운영 사이트입니다.
 
 ## 포함 기능
 
-- Riot 일반/랭크/칼바람 전적 검색
 - 내전 참가자 관리
-- 내전 결과 입력 및 랭킹
-- 기존 경매 프로그램
-- 기존 티어표 프로그램
+- 내전 결과 입력 및 승패 랭킹
+- 기존 경매 프로그램 통합
+- 기존 티어표 프로그램 통합
 
-## 배포 구조
+## 배포
 
-GitHub Pages에는 화면 파일을 올립니다.
+GitHub Pages에 그대로 올리면 됩니다.
+
+주요 파일:
 
 - `index.html`
 - `styles.css`
 - `app.js`
 - `auction/`
 - `tier/`
-
-Cloudflare Worker에는 `worker.js` 내용을 올립니다.
-Riot API 키는 Cloudflare Worker의 Secret에만 저장합니다.
-
-Secret 이름:
-
-```text
-RIOT_API_KEY
-```
-
-사이트에는 이미 Worker 주소가 기본 연결되어 있습니다.
-
-```text
-https://nazun.tprtlwlsvld.workers.dev
-```
 
 ## 로컬 테스트
 
@@ -47,8 +33,8 @@ npm start
 http://localhost:5177
 ```
 
-## 주의
+## 메모
 
-- `.env` 파일은 GitHub에 올리지 마세요.
-- `RGAPI-`로 시작하는 Riot API 키를 `index.html`, `app.js`, README, GitHub 커밋에 넣지 마세요.
-- 일반 사용자 설정 게임은 Riot API에서 안정적으로 내려오지 않을 수 있습니다.
+- Riot API 전적검색 기능은 제거했습니다.
+- 사용자 설정 게임은 공식 전적 API에서 안정적으로 내려오지 않기 때문에, 내전은 사이트 안에서 직접 기록하는 방식으로 관리합니다.
+- 저장된 참가자와 경기 기록은 브라우저 localStorage에 저장됩니다.

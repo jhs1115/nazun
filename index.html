@@ -9,75 +9,36 @@
   </head>
   <body>
     <main class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">NAZUN Inhouse Hub</p>
-          <h1>내전 통합 관리</h1>
-        </div>
-        <div class="api-state" id="apiState">Riot API 연결됨</div>
-      </header>
+      <div class="screen-menu">
+        <button class="menu-toggle" id="menuToggle" type="button">화면 변경</button>
+      </div>
 
-      <nav class="tabs" aria-label="주요 메뉴">
-        <button class="tab active" type="button" data-view="records">전적검색</button>
-        <button class="tab" type="button" data-view="inhouse">내전 관리</button>
+      <nav class="tabs" id="screenTabs" aria-label="화면 변경">
+        <button class="tab active" type="button" data-view="inhouse">내전 관리</button>
         <button class="tab" type="button" data-view="auction">경매</button>
         <button class="tab" type="button" data-view="tier">티어표</button>
       </nav>
 
-      <section class="view active" id="recordsView">
-        <section class="panel search-panel">
-          <div>
-            <p class="eyebrow">Riot Match Search</p>
-            <h2>일반 / 랭크 전적 검색</h2>
-            <p class="muted">사용자 설정 게임은 보통 내려오지 않지만, 일반 게임과 랭크 전적은 검색할 수 있습니다.</p>
-          </div>
-          <form class="search-form" id="searchForm">
-            <label>
-              <span>게임 이름</span>
-              <input id="gameName" name="gameName" autocomplete="off" value="장천동부모도둑감성준" />
-            </label>
-            <label>
-              <span>태그</span>
-              <input id="tagLine" name="tagLine" autocomplete="off" value="6974" />
-            </label>
-            <label>
-              <span>서버</span>
-              <select id="region" name="region">
-                <option value="kr" selected>KR</option>
-                <option value="jp1">JP</option>
-                <option value="na1">NA</option>
-                <option value="euw1">EUW</option>
-              </select>
-            </label>
-            <button type="submit">검색</button>
-          </form>
-          <div class="notice" id="notice">최근 10경기를 조회합니다.</div>
-        </section>
-
-        <section class="summary-grid">
-          <article class="stat-card">
-            <span>검색 대상</span>
-            <strong id="targetName">장천동부모도둑감성준#6974</strong>
+      <section class="view active" id="inhouseView">
+        <section class="command-strip">
+          <article class="command-card">
+            <span>참가자</span>
+            <strong id="memberCount">0명</strong>
           </article>
-          <article class="stat-card">
-            <span>표시 경기</span>
-            <strong id="totalCount">0</strong>
+          <article class="command-card">
+            <span>기록된 경기</span>
+            <strong id="recordCount">0경기</strong>
           </article>
-          <article class="stat-card">
-            <span>승 / 패</span>
-            <strong id="winLoss">0 / 0</strong>
+          <article class="command-card">
+            <span>운영 도구</span>
+            <strong>경매 / 티어표</strong>
           </article>
         </section>
 
-        <section class="match-list" id="matchList"></section>
-      </section>
-
-      <section class="view" id="inhouseView">
         <section class="manager-grid">
           <article class="panel">
             <div class="section-head">
               <div>
-                <p class="eyebrow">Members</p>
                 <h2>참가자 관리</h2>
               </div>
               <button class="ghost" id="clearPlayersButton" type="button">초기화</button>
@@ -95,12 +56,12 @@
                 <option>마스터+</option>
               </select>
               <select id="playerLaneInput">
-                <option>Top</option>
-                <option>Jug</option>
-                <option>Mid</option>
-                <option>Adc</option>
-                <option>Sup</option>
-                <option>Fill</option>
+                <option>탑</option>
+                <option>정글</option>
+                <option>미드</option>
+                <option>원딜</option>
+                <option>서폿</option>
+                <option>상관없음</option>
               </select>
               <button type="submit">추가</button>
             </form>
@@ -110,7 +71,6 @@
           <article class="panel">
             <div class="section-head">
               <div>
-                <p class="eyebrow">Match Log</p>
                 <h2>내전 결과 입력</h2>
               </div>
               <button class="ghost" id="clearMatchesButton" type="button">기록 삭제</button>
@@ -142,12 +102,10 @@
 
         <section class="manager-grid bottom-grid">
           <article class="panel">
-            <p class="eyebrow">Ranking</p>
             <h2>내전 랭킹</h2>
             <div class="ranking-table" id="rankingTable"></div>
           </article>
           <article class="panel">
-            <p class="eyebrow">History</p>
             <h2>경기 기록</h2>
             <div class="history-list" id="historyList"></div>
           </article>
@@ -162,28 +120,6 @@
         <iframe title="티어표" src="./tier/index.html"></iframe>
       </section>
     </main>
-
-    <template id="matchTemplate">
-      <article class="match-card">
-        <div>
-          <h3></h3>
-          <p class="match-meta"></p>
-        </div>
-        <div class="match-main">
-          <strong class="champion"></strong>
-          <span class="kda"></span>
-          <span class="queue"></span>
-          <span class="result"></span>
-        </div>
-        <div class="participants"></div>
-      </article>
-    </template>
-
-    <script>
-      window.INHOUSE_CONFIG = {
-        API_BASE_URL: "https://nazun.tprtlwlsvld.workers.dev"
-      };
-    </script>
     <script src="./app.js"></script>
   </body>
 </html>
