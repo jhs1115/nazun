@@ -160,7 +160,7 @@ async function search(event) {
   setNotice("최근 경기에서 사용자 설정 5대5를 찾는 중입니다.");
 
   try {
-    const params = new URLSearchParams({ gameName, tagLine, region, count: "80" });
+    const params = new URLSearchParams({ gameName, tagLine, region, count: "20" });
     const apiUrl = getApiUrl(`/api/search?${params}`);
 
     if (!apiUrl) {

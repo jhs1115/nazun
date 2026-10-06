@@ -67,7 +67,7 @@ async function handleSearch(url, res) {
   const gameName = required(url, "gameName");
   const tagLine = required(url, "tagLine").replace(/^#/, "");
   const region = (url.searchParams.get("region") || "kr").toLowerCase();
-  const count = clamp(Number(url.searchParams.get("count") || 80), 1, 100);
+  const count = clamp(Number(url.searchParams.get("count") || 20), 1, 20);
   const group = regionGroups[region];
   if (!group) throw new Error("지원하지 않는 서버입니다.");
 
