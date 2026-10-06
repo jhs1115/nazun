@@ -45,11 +45,16 @@ const els = {
 
 const PLAYER_STORE_KEY = "nazun-players-v2";
 const MATCH_STORE_KEY = "nazun-matches";
+const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
+const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
+const supabaseClient = SUPABASE_READY
+  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+  : null;
 
 const state = {
   players: readStore(PLAYER_STORE_KEY, []),
   matches: readStore(MATCH_STORE_KEY, []),
-  currentUser: readStore("nazun-current-user", null),
+  currentUser: null,
   editingPlayerIndex: null,
   adminUnlocked: sessionStorage.getItem("nazun-admin-unlocked") === "1",
 };
@@ -66,14 +71,6 @@ function readStore(key, fallback) {
 
 function writeStore(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
-}
-
-function accounts() {
-  return readStore("nazun-accounts", []);
-}
-
-function saveAccounts(value) {
-  writeStore("nazun-accounts", value);
 }
 
 function setMessage(el, message, isError = false) {
@@ -132,55 +129,112 @@ function togglePassword(input, button) {
   button.textContent = visible ? "보기" : "숨기기";
 }
 
-function setCurrentUser(username) {
-  state.currentUser = username ? { username } : null;
-  writeStore("nazun-current-user", state.currentUser);
+function getUserLabel(user) {
+  return user?.user_metadata?.display_name || user?.email || "";
+}
+
+function setCurrentUser(user) {
+  state.currentUser = user || null;
   renderAuth();
 }
 
 function renderAuth() {
-  if (state.currentUser?.username) {
-    els.authOpenButton.textContent = `${state.currentUser.username} 로그아웃`;
+  const label = getUserLabel(state.currentUser);
+  if (label) {
+    els.authOpenButton.textContent = `${label} 로그아웃`;
   } else {
     els.authOpenButton.textContent = "로그인";
   }
 }
 
-function signup() {
-  const username = els.signupUsername.value.trim();
+function checkSupabaseReady(messageEl) {
+  if (SUPABASE_READY) return true;
+  setMessage(messageEl, "Supabase 설정을 찾지 못했습니다.", true);
+  return false;
+}
+
+async function signup() {
+  if (!checkSupabaseReady(els.signupMessage)) return;
+  const email = els.signupUsername.value.trim();
   const password = els.signupPassword.value;
-  if (!username || !password) {
-    setMessage(els.signupMessage, "아이디와 비밀번호를 입력하세요.", true);
+  if (!email || !password) {
+    setMessage(els.signupMessage, "이메일과 비밀번호를 입력하세요.", true);
     return;
   }
-  if (password.length < 4) {
-    setMessage(els.signupMessage, "비밀번호는 4자 이상으로 해주세요.", true);
+  if (password.length < 6) {
+    setMessage(els.signupMessage, "비밀번호는 6자 이상으로 해주세요.", true);
     return;
   }
-  const list = accounts();
-  if (list.some((account) => account.username === username)) {
-    setMessage(els.signupMessage, "이미 있는 아이디입니다.", true);
+
+  els.signupButton.disabled = true;
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        display_name: email.split("@")[0],
+      },
+    },
+  });
+  els.signupButton.disabled = false;
+
+  if (error) {
+    setMessage(els.signupMessage, error.message, true);
     return;
   }
-  list.push({ username, password });
-  saveAccounts(list);
-  setCurrentUser(username);
+
+  if (data.user && !data.session) {
+    setMessage(els.signupMessage, "가입 확인 메일을 보냈습니다. 메일 인증 후 로그인하세요.");
+    return;
+  }
+
+  setCurrentUser(data.user);
   els.signupUsername.value = "";
   els.signupPassword.value = "";
   closeAuth();
 }
 
-function login() {
-  const username = els.loginUsername.value.trim();
+async function login() {
+  if (!checkSupabaseReady(els.loginMessage)) return;
+  const email = els.loginUsername.value.trim();
   const password = els.loginPassword.value;
-  const account = accounts().find((item) => item.username === username && item.password === password);
-  if (!account) {
-    setMessage(els.loginMessage, "아이디나 비밀번호가 맞지 않습니다.", true);
+  if (!email || !password) {
+    setMessage(els.loginMessage, "이메일과 비밀번호를 입력하세요.", true);
     return;
   }
-  setCurrentUser(username);
+
+  els.loginButton.disabled = true;
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  els.loginButton.disabled = false;
+
+  if (error) {
+    setMessage(els.loginMessage, "이메일이나 비밀번호가 맞지 않습니다.", true);
+    return;
+  }
+
+  setCurrentUser(data.user);
   els.loginPassword.value = "";
   closeAuth();
+}
+
+async function logout() {
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+  }
+  setCurrentUser(null);
+}
+
+async function initAuth() {
+  if (!supabaseClient) {
+    renderAuth();
+    return;
+  }
+
+  const { data } = await supabaseClient.auth.getUser();
+  setCurrentUser(data.user);
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    setCurrentUser(session?.user || null);
+  });
 }
 
 function toggleTheme() {
@@ -350,8 +404,8 @@ els.menuToggle.addEventListener("click", () => {
 els.themeToggle.addEventListener("click", toggleTheme);
 
 els.authOpenButton.addEventListener("click", () => {
-  if (state.currentUser?.username) {
-    setCurrentUser(null);
+  if (state.currentUser) {
+    logout();
     return;
   }
   openAuth("login");
@@ -360,8 +414,8 @@ els.authOpenButton.addEventListener("click", () => {
 els.authCloseButton.addEventListener("click", closeAuth);
 els.showSignupButton.addEventListener("click", () => showAuthPane("signup"));
 els.showLoginButton.addEventListener("click", () => showAuthPane("login"));
-els.signupButton.addEventListener("click", signup);
-els.loginButton.addEventListener("click", login);
+els.signupButton.addEventListener("click", () => signup());
+els.loginButton.addEventListener("click", () => login());
 els.toggleLoginPassword.addEventListener("click", () => togglePassword(els.loginPassword, els.toggleLoginPassword));
 els.toggleSignupPassword.addEventListener("click", () => togglePassword(els.signupPassword, els.toggleSignupPassword));
 els.loginPassword.addEventListener("keydown", (event) => {
@@ -478,5 +532,5 @@ els.clearMatchesButton.addEventListener("click", () => {
 });
 
 initTheme();
-renderAuth();
+initAuth();
 renderManager();
