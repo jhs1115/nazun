@@ -2024,3 +2024,27 @@
       background: #35191d;
       border-color: #7f333c;
     }
+
+    body.dark-mode .team-card {
+      color: #182033;
+      background: linear-gradient(145deg, #ffffff, #eef4ff);
+      border-color: #cdd9ef;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+    }
+
+    body.dark-mode .team-card .team-note,
+    body.dark-mode .team-card .empty-message {
+      color: #66748a;
+    }
+
+    body.dark-mode .team-card .team-points,
+    body.dark-mode .team-card .team-members {
+      color: #182033;
+      background: #f8fbff;
+      border-color: #cdd9ef;
+    }
+
+    body.dark-mode .team-card .point-pill {
+      color: #284b80;
+      background: #e8f1ff;
+    }
