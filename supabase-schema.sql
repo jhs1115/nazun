@@ -16,14 +16,41 @@ create table if not exists public.nazun_match_comments (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.nazun_tier_posts (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete set null,
+  author text not null default '익명',
+  note text not null default '',
+  placements jsonb not null default '{}'::jsonb,
+  stats jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.nazun_tier_comments (
+  id text primary key,
+  post_id text not null references public.nazun_tier_posts(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  author text not null default '익명',
+  message text not null check (char_length(message) between 1 and 160),
+  created_at timestamptz not null default now()
+);
+
 create index if not exists nazun_matches_created_at_idx
 on public.nazun_matches(created_at desc);
 
 create index if not exists nazun_match_comments_match_created_idx
 on public.nazun_match_comments(match_id, created_at asc);
 
+create index if not exists nazun_tier_posts_created_at_idx
+on public.nazun_tier_posts(created_at desc);
+
+create index if not exists nazun_tier_comments_post_created_idx
+on public.nazun_tier_comments(post_id, created_at asc);
+
 alter table public.nazun_matches enable row level security;
 alter table public.nazun_match_comments enable row level security;
+alter table public.nazun_tier_posts enable row level security;
+alter table public.nazun_tier_comments enable row level security;
 
 drop policy if exists "nazun matches visible" on public.nazun_matches;
 create policy "nazun matches visible"
@@ -55,8 +82,46 @@ on public.nazun_match_comments for insert
 to authenticated
 with check (auth.uid() = user_id);
 
+drop policy if exists "nazun comments deletable by logged in users" on public.nazun_match_comments;
+create policy "nazun comments deletable by logged in users"
+on public.nazun_match_comments for delete
+to authenticated
+using (true);
+
+drop policy if exists "nazun tier posts visible" on public.nazun_tier_posts;
+create policy "nazun tier posts visible"
+on public.nazun_tier_posts for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun tier posts writable by logged in users" on public.nazun_tier_posts;
+create policy "nazun tier posts writable by logged in users"
+on public.nazun_tier_posts for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun tier comments visible" on public.nazun_tier_comments;
+create policy "nazun tier comments visible"
+on public.nazun_tier_comments for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun tier comments writable by logged in users" on public.nazun_tier_comments;
+create policy "nazun tier comments writable by logged in users"
+on public.nazun_tier_comments for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun tier comments deletable by logged in users" on public.nazun_tier_comments;
+create policy "nazun tier comments deletable by logged in users"
+on public.nazun_tier_comments for delete
+to authenticated
+using (true);
+
 alter table public.nazun_matches replica identity full;
 alter table public.nazun_match_comments replica identity full;
+alter table public.nazun_tier_posts replica identity full;
+alter table public.nazun_tier_comments replica identity full;
 
 do $$
 begin
@@ -78,5 +143,25 @@ begin
       and tablename = 'nazun_match_comments'
   ) then
     alter publication supabase_realtime add table public.nazun_match_comments;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'nazun_tier_posts'
+  ) then
+    alter publication supabase_realtime add table public.nazun_tier_posts;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'nazun_tier_comments'
+  ) then
+    alter publication supabase_realtime add table public.nazun_tier_comments;
   end if;
 end $$;

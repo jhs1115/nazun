@@ -45,6 +45,15 @@
         <div class="pool-header">미배치 항목</div>
         <div class="pool-items" id="pool" data-zone="pool"></div>
       </div>
+
+      <section class="share-panel" aria-label="티어표 공유">
+        <div class="share-head">
+          <h2>공유 티어리스트</h2>
+          <button id="publishTierButton" class="tier-reset-button" type="button">올리기</button>
+        </div>
+        <textarea id="tierNoteInput" class="tier-note-input" rows="3" maxlength="180" placeholder="멘트 입력"></textarea>
+        <div class="shared-tier-list" id="sharedTierList"></div>
+      </section>
     </section>
 
     <aside class="stats-panel" id="statsPanel" aria-label="스탯 설정">
@@ -62,6 +71,8 @@
     </aside>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

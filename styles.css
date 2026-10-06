@@ -416,6 +416,81 @@ body.dark-mode .patch-card {
   min-height: 520px;
 }
 
+.patch-note-heading {
+  margin-bottom: 18px;
+}
+
+.patch-note-heading h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.patch-note-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.patch-version-panel,
+.patch-content-panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-soft);
+}
+
+.patch-version-panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+}
+
+.patch-version-panel strong {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.patch-version-button {
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: var(--text);
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  font-weight: 1000;
+}
+
+.patch-version-button.is-active {
+  color: #5c42c6;
+  border-color: var(--blue);
+  background: linear-gradient(145deg, #ffffff, var(--purple-soft));
+}
+
+.patch-content-panel {
+  min-height: 360px;
+  padding: 18px;
+  background: #fff;
+}
+
+.patch-content-panel h3 {
+  margin: 0 0 14px;
+  font-size: 22px;
+}
+
+.patch-version-content ul {
+  display: grid;
+  gap: 10px;
+  padding-left: 20px;
+}
+
+.patch-version-content li {
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.6;
+}
+
 .auth-close {
   position: absolute;
   top: 12px;
@@ -572,6 +647,13 @@ body.dark-mode .patch-card {
   line-height: 1.5;
 }
 
+.history-date {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .history-team.blue {
   color: #386fcb;
 }
@@ -608,6 +690,24 @@ body.dark-mode .patch-card {
   margin-bottom: 4px;
   color: var(--blue-strong);
   font-size: 13px;
+  font-weight: 1000;
+}
+
+.comment-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comment-delete {
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: #a33d3d;
+  background: #fff1f1;
+  border: 1px solid #f0b8b8;
+  font-size: 12px;
   font-weight: 1000;
 }
 
@@ -787,6 +887,10 @@ body.dark-mode .patch-card {
     left: 10px;
     right: 10px;
     width: auto;
+  }
+
+  .patch-note-layout {
+    grid-template-columns: 1fr;
   }
 
   .top-controls {

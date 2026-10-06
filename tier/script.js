@@ -1,17 +1,26 @@
 const NAMES = [
   '감성준', '힘웃사', '그그달', '레전드', '다람쥐',
   '레몬', '혜지', '영호', '꽉낄라', '파우스트',
-  '천사', '키노카노', '황정호',
+  '천사', '황정호',
   '윈드', '망객', '브이', '실버', '민초',
   '밴치'
 ];
 
 const STAT_KEYS = ['라인전', '한타', '뇌지컬', '오더', '멘탈', '충성심', '챔프폭'];
 const DEFAULT_STATS = [0, 0, 0, 0, 0, 0, 0];
+const TIER_POST_TABLE = 'nazun_tier_posts';
+const TIER_COMMENT_TABLE = 'nazun_tier_comments';
+const ADMIN_PASSWORD = 'jhs081115jhs';
+const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
+const supabaseClient = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey
+  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+  : null;
 
 let placements = JSON.parse(localStorage.getItem('tl_data') || '{}');
 let statData = JSON.parse(localStorage.getItem('tl_stats_v2') || '{}');
 let selectedName = null;
+let sharedTierPosts = [];
+let openSharedComments = new Set();
 
 placements = Object.fromEntries(
   Object.entries(placements).filter(([name]) => NAMES.includes(name))
@@ -27,6 +36,51 @@ function save() {
 
 function saveStats() {
   localStorage.setItem('tl_stats_v2', JSON.stringify(statData));
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function getUserLabel(user) {
+  return user?.user_metadata?.display_name || user?.email?.split('@')[0] || '';
+}
+
+function snapshotPlacements() {
+  const result = {};
+  document.querySelectorAll('[data-zone]').forEach(zone => {
+    const zoneId = zone.dataset.zone;
+    zone.querySelectorAll('.card').forEach(card => {
+      result[card.dataset.name] = zoneId;
+    });
+  });
+  return result;
+}
+
+function groupedTierMarkup(post) {
+  const data = post.placements || {};
+  return [1, 2, 3, 4, 5].map(tier => {
+    const names = Object.entries(data)
+      .filter(([, value]) => value === String(tier))
+      .map(([name]) => name);
+    return `
+      <div class="shared-tier-row">
+        <strong>${tier}</strong>
+        <span>${names.length ? names.map(escapeHtml).join(', ') : '없음'}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function currentUser() {
+  if (!supabaseClient) return null;
+  const { data } = await supabaseClient.auth.getUser();
+  return data.user || null;
 }
 
 function getStats(name) {
@@ -270,6 +324,175 @@ function setupStats() {
   });
 }
 
+async function loadSharedTierPosts() {
+  if (!supabaseClient) {
+    renderSharedTierPosts();
+    return;
+  }
+
+  const [postsResult, commentsResult] = await Promise.all([
+    supabaseClient.from(TIER_POST_TABLE).select('*').order('created_at', { ascending: false }).limit(20),
+    supabaseClient.from(TIER_COMMENT_TABLE).select('*').order('created_at', { ascending: true })
+  ]);
+
+  if (postsResult.error || commentsResult.error) {
+    sharedTierPosts = [];
+    renderSharedTierPosts('Supabase 티어표 테이블을 먼저 만들어야 합니다.');
+    return;
+  }
+
+  const commentsByPost = new Map();
+  for (const row of commentsResult.data || []) {
+    const list = commentsByPost.get(row.post_id) || [];
+    list.push({
+      id: row.id,
+      author: row.author || '익명',
+      text: row.message || '',
+      createdAt: row.created_at ? Date.parse(row.created_at) : Date.now()
+    });
+    commentsByPost.set(row.post_id, list);
+  }
+
+  sharedTierPosts = (postsResult.data || []).map(row => ({
+    id: row.id,
+    author: row.author || '익명',
+    note: row.note || '',
+    placements: row.placements || {},
+    stats: row.stats || {},
+    createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+    comments: commentsByPost.get(row.id) || []
+  }));
+  renderSharedTierPosts();
+}
+
+function renderSharedTierPosts(message = '') {
+  const list = document.getElementById('sharedTierList');
+  if (message) {
+    list.innerHTML = `<div class="share-empty">${escapeHtml(message)}</div>`;
+    return;
+  }
+  if (!sharedTierPosts.length) {
+    list.innerHTML = `<div class="share-empty">아직 올라온 티어리스트가 없습니다.</div>`;
+    return;
+  }
+
+  list.innerHTML = sharedTierPosts.map((post, index) => {
+    const open = openSharedComments.has(post.id);
+    return `
+      <article class="shared-tier-card">
+        <div class="shared-tier-top">
+          <div>
+            <strong>${escapeHtml(post.author)}</strong>
+            <small>${new Date(post.createdAt).toLocaleString('ko-KR')}</small>
+          </div>
+          <button class="tier-comment-toggle" type="button" data-tier-comments="${index}">${open ? '접기' : `댓글 ${post.comments.length}`}</button>
+        </div>
+        <p class="shared-tier-note">${escapeHtml(post.note || '멘트 없음')}</p>
+        <div class="shared-tier-board">${groupedTierMarkup(post)}</div>
+        ${
+          open
+            ? `
+              <div class="tier-comments-panel">
+                <div class="tier-comment-list">
+                  ${
+                    post.comments.length
+                      ? post.comments.map(comment => `
+                          <article class="tier-comment-item">
+                            <div class="comment-top">
+                              <strong>${escapeHtml(comment.author)}</strong>
+                              <button class="comment-delete" type="button" data-delete-tier-comment="${index}:${escapeHtml(comment.id)}">삭제</button>
+                            </div>
+                            <p>${escapeHtml(comment.text)}</p>
+                          </article>
+                        `).join('')
+                      : `<div class="share-empty">댓글이 없습니다.</div>`
+                  }
+                </div>
+                <form class="tier-comment-form" data-tier-comment-form="${index}">
+                  <input name="comment" maxlength="160" placeholder="댓글 입력" autocomplete="off" />
+                  <button type="submit">등록</button>
+                </form>
+              </div>
+            `
+            : ''
+        }
+      </article>
+    `;
+  }).join('');
+}
+
+async function publishTierList() {
+  if (!supabaseClient) {
+    alert('Supabase 설정을 찾지 못했습니다.');
+    return;
+  }
+  const user = await currentUser();
+  if (!user) {
+    alert('로그인 후 올릴 수 있습니다.');
+    return;
+  }
+
+  const note = document.getElementById('tierNoteInput').value.trim();
+  const post = {
+    id: `tier-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    user_id: user.id,
+    author: getUserLabel(user),
+    note,
+    placements: snapshotPlacements(),
+    stats: statData,
+    created_at: new Date().toISOString()
+  };
+  const { error } = await supabaseClient.from(TIER_POST_TABLE).insert(post);
+  if (error) {
+    alert('티어리스트 업로드에 실패했습니다. Supabase 테이블을 확인하세요.');
+    return;
+  }
+  document.getElementById('tierNoteInput').value = '';
+  await loadSharedTierPosts();
+}
+
+async function submitTierComment(index, text) {
+  if (!supabaseClient) return;
+  const user = await currentUser();
+  if (!user) {
+    alert('로그인 후 댓글을 쓸 수 있습니다.');
+    return;
+  }
+  const post = sharedTierPosts[index];
+  if (!post || !text) return;
+  const { error } = await supabaseClient.from(TIER_COMMENT_TABLE).insert({
+    id: `tier-comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    post_id: post.id,
+    user_id: user.id,
+    author: getUserLabel(user),
+    message: text,
+    created_at: new Date().toISOString()
+  });
+  if (error) {
+    alert('댓글 저장에 실패했습니다.');
+    return;
+  }
+  openSharedComments.add(post.id);
+  await loadSharedTierPosts();
+}
+
+async function deleteTierComment(index, commentId) {
+  const password = prompt('관리자 비밀번호를 입력하세요.');
+  if (password !== ADMIN_PASSWORD) {
+    alert('비밀번호가 맞지 않습니다.');
+    return;
+  }
+  const post = sharedTierPosts[index];
+  if (!post) return;
+  const { error } = await supabaseClient.from(TIER_COMMENT_TABLE).delete().eq('id', commentId);
+  if (error) {
+    alert('댓글 삭제에 실패했습니다.');
+    return;
+  }
+  openSharedComments.add(post.id);
+  await loadSharedTierPosts();
+}
+
 function init() {
   const pool = document.getElementById('pool');
   NAMES.forEach(name => {
@@ -303,8 +526,42 @@ function init() {
     hideStatsPanel();
     updateHints();
   });
+  document.getElementById('publishTierButton').addEventListener('click', publishTierList);
+  document.getElementById('sharedTierList').addEventListener('click', event => {
+    const toggle = event.target.closest('[data-tier-comments]');
+    if (toggle) {
+      const post = sharedTierPosts[Number(toggle.dataset.tierComments)];
+      if (!post) return;
+      if (openSharedComments.has(post.id)) openSharedComments.delete(post.id);
+      else openSharedComments.add(post.id);
+      renderSharedTierPosts();
+      return;
+    }
+    const deleteButton = event.target.closest('[data-delete-tier-comment]');
+    if (deleteButton) {
+      const [index, commentId] = deleteButton.dataset.deleteTierComment.split(':');
+      deleteTierComment(Number(index), commentId);
+    }
+  });
+  document.getElementById('sharedTierList').addEventListener('submit', event => {
+    const form = event.target.closest('[data-tier-comment-form]');
+    if (!form) return;
+    event.preventDefault();
+    const input = form.elements.comment;
+    const text = input.value.trim();
+    input.value = '';
+    submitTierComment(Number(form.dataset.tierCommentForm), text);
+  });
   hideStatsPanel();
   updateHints();
+  loadSharedTierPosts();
+  if (supabaseClient) {
+    supabaseClient
+      .channel('nazun-tier-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: TIER_POST_TABLE }, () => loadSharedTierPosts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: TIER_COMMENT_TABLE }, () => loadSharedTierPosts())
+      .subscribe();
+  }
 }
 
 init();

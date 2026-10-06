@@ -62,6 +62,7 @@ const PLAYER_STORE_KEY = "nazun-players-v2";
 const MATCH_STORE_KEY = "nazun-matches";
 const MATCH_TABLE = "nazun_matches";
 const COMMENT_TABLE = "nazun_match_comments";
+const MAX_MATCHES = 10;
 const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
 const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
 const supabaseClient = SUPABASE_READY
@@ -158,6 +159,17 @@ function commentToRemoteRow(match, comment) {
     message: comment.text,
     created_at: new Date(comment.createdAt || Date.now()).toISOString(),
   };
+}
+
+function formatDate(value) {
+  const date = new Date(value || Date.now());
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function findDuplicateName(names) {
@@ -389,7 +401,7 @@ async function loadRemoteMatches(showMessage = false) {
   if (!supabaseClient) return false;
 
   const [matchesResult, commentsResult] = await Promise.all([
-    supabaseClient.from(MATCH_TABLE).select("*").order("created_at", { ascending: false }),
+    supabaseClient.from(MATCH_TABLE).select("*").order("created_at", { ascending: false }).limit(MAX_MATCHES),
     supabaseClient.from(COMMENT_TABLE).select("*").order("created_at", { ascending: true }),
   ]);
 
@@ -414,7 +426,7 @@ async function loadRemoteMatches(showMessage = false) {
   }
 
   state.remoteMatchesReady = true;
-  state.matches = (matchesResult.data || []).map((row) => normalizeRemoteMatch(row, commentsByMatch));
+  state.matches = (matchesResult.data || []).map((row) => normalizeRemoteMatch(row, commentsByMatch)).slice(0, MAX_MATCHES);
   saveMatches();
   renderManager();
   return true;
@@ -438,7 +450,20 @@ async function saveRemoteMatch(match) {
     return false;
   }
   state.remoteMatchesReady = true;
+  await trimRemoteMatches();
   return true;
+}
+
+async function trimRemoteMatches() {
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient
+    .from(MATCH_TABLE)
+    .select("id")
+    .order("created_at", { ascending: false })
+    .range(MAX_MATCHES, 1000);
+  if (!error && data?.length) {
+    await supabaseClient.from(MATCH_TABLE).delete().in("id", data.map((row) => row.id));
+  }
 }
 
 async function clearRemoteMatches() {
@@ -456,6 +481,16 @@ async function saveRemoteComment(match, comment) {
   const { error } = await supabaseClient.from(COMMENT_TABLE).insert(commentToRemoteRow(match, comment));
   if (error) {
     alert("댓글 공유 저장에 실패했습니다. Supabase 테이블을 확인하세요.");
+    return false;
+  }
+  return true;
+}
+
+async function deleteRemoteComment(commentId) {
+  if (!supabaseClient) return false;
+  const { error } = await supabaseClient.from(COMMENT_TABLE).delete().eq("id", commentId);
+  if (error) {
+    alert("댓글 삭제에 실패했습니다. Supabase 권한을 확인하세요.");
     return false;
   }
   return true;
@@ -544,17 +579,17 @@ function renderRankings() {
     table.set(player.name, { name: player.name, win: 0, loss: 0, games: 0 });
   }
 
-  for (const match of state.matches) {
+  for (const match of state.matches.slice(0, MAX_MATCHES)) {
     const winners = match.winner === "blue" ? match.blue : match.red;
     const losers = match.winner === "blue" ? match.red : match.blue;
     for (const name of winners) {
-      if (!table.has(name)) table.set(name, { name, win: 0, loss: 0, games: 0 });
+      if (!table.has(name)) continue;
       const item = table.get(name);
       item.win += 1;
       item.games += 1;
     }
     for (const name of losers) {
-      if (!table.has(name)) table.set(name, { name, win: 0, loss: 0, games: 0 });
+      if (!table.has(name)) continue;
       const item = table.get(name);
       item.loss += 1;
       item.games += 1;
@@ -585,7 +620,7 @@ function renderRankings() {
 
 function renderHistory() {
   els.historyList.replaceChildren(
-    ...state.matches.map((match, index) => {
+    ...state.matches.slice(0, MAX_MATCHES).map((match, index) => {
       const matchId = getMatchId(match);
       const comments = Array.isArray(match.comments) ? match.comments : [];
       const isOpen = state.openComments.has(matchId);
@@ -597,6 +632,7 @@ function renderHistory() {
         <div class="history-main">
           <div class="history-content">
             <strong class="history-title"><span class="history-team ${winnerClass}">${winner}</span> 승리</strong>
+            <div class="history-date">${formatDate(match.createdAt)}</div>
             <div class="history-meta history-teams">
               <span class="history-team blue">블루팀</span> : ${escapeHtml(match.blue.join(", "))}<br />
               <span class="history-team red">레드팀</span> : ${escapeHtml(match.red.join(", "))}
@@ -614,7 +650,10 @@ function renderHistory() {
                     comments.length
                       ? comments.map((comment) => `
                           <article class="comment-item">
-                            <strong>${escapeHtml(comment.author || "익명")}</strong>
+                            <div class="comment-top">
+                              <strong>${escapeHtml(comment.author || "익명")}</strong>
+                              <button class="comment-delete" type="button" data-delete-comment="${index}:${escapeHtml(comment.id)}">삭제</button>
+                            </div>
                             <p>${escapeHtml(comment.text || "")}</p>
                           </article>
                         `).join("")
@@ -821,6 +860,7 @@ els.inhouseMatchForm.addEventListener("submit", async (event) => {
     comments: [],
   };
   state.matches.unshift(nextMatch);
+  state.matches = state.matches.slice(0, MAX_MATCHES);
   els.blueTeamInput.value = "";
   els.redTeamInput.value = "";
   els.matchMemoInput.value = "";
@@ -877,6 +917,27 @@ els.historyList.addEventListener("submit", async (event) => {
   const saved = await saveRemoteComment(match, comment);
   if (saved) {
     await loadRemoteMatches();
+  }
+});
+
+els.historyList.addEventListener("click", async (event) => {
+  const deleteButton = event.target.closest("[data-delete-comment]");
+  if (!deleteButton) return;
+  event.preventDefault();
+  const password = prompt("관리자 비밀번호를 입력하세요.");
+  if (password !== ADMIN_PASSWORD) {
+    alert("비밀번호가 맞지 않습니다.");
+    return;
+  }
+  const [matchIndexText, commentId] = deleteButton.dataset.deleteComment.split(":");
+  const match = state.matches[Number(matchIndexText)];
+  if (!match) return;
+  match.comments = (match.comments || []).filter((comment) => comment.id !== commentId);
+  saveMatches();
+  renderManager();
+  if (state.remoteMatchesReady) {
+    const deleted = await deleteRemoteComment(commentId);
+    if (deleted) await loadRemoteMatches();
   }
 });
 
