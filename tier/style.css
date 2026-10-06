@@ -281,6 +281,13 @@ body.dark-mode .tier-note-input {
   gap: 10px;
 }
 
+.shared-tier-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .shared-tier-top strong {
   display: block;
   font-size: 16px;
@@ -315,6 +322,31 @@ body.dark-mode .tier-note-input {
   font-size: 14px;
   font-weight: 900;
   line-height: 1.55;
+}
+
+.tier-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tier-reaction-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #c8d5ed;
+  border-radius: 999px;
+  color: #2a4166;
+  background: #f4f8ff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.tier-reaction-button.active {
+  color: #fff;
+  background: var(--blue-strong);
+  border-color: var(--blue-strong);
 }
 
 .shared-tier-board {
@@ -391,6 +423,32 @@ body.dark-mode .tier-note-input {
   font-size: 14px;
   font-weight: 850;
   line-height: 1.5;
+}
+
+.tier-comment-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.tier-comment-reaction-button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #c8d5ed;
+  border-radius: 999px;
+  color: #2a4166;
+  background: #f4f8ff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.tier-comment-reaction-button.active {
+  color: #fff;
+  background: var(--blue-strong);
+  border-color: var(--blue-strong);
 }
 
 .comment-delete {

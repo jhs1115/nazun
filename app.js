@@ -62,6 +62,7 @@ const PLAYER_STORE_KEY = "nazun-players-v2";
 const MATCH_STORE_KEY = "nazun-matches";
 const MATCH_TABLE = "nazun_matches";
 const COMMENT_TABLE = "nazun_match_comments";
+const COMMENT_REACTION_TABLE = "nazun_match_comment_reactions";
 const MAX_MATCHES = 10;
 const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
 const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
@@ -248,6 +249,9 @@ function getUserLabel(user) {
 function setCurrentUser(user) {
   state.currentUser = user || null;
   renderAuth();
+  if (supabaseClient) {
+    loadRemoteMatches();
+  }
 }
 
 function renderAuth() {
@@ -400,9 +404,10 @@ async function initAuth() {
 async function loadRemoteMatches(showMessage = false) {
   if (!supabaseClient) return false;
 
-  const [matchesResult, commentsResult] = await Promise.all([
+  const [matchesResult, commentsResult, reactionsResult] = await Promise.all([
     supabaseClient.from(MATCH_TABLE).select("*").order("created_at", { ascending: false }).limit(MAX_MATCHES),
     supabaseClient.from(COMMENT_TABLE).select("*").order("created_at", { ascending: true }),
+    supabaseClient.from(COMMENT_REACTION_TABLE).select("*"),
   ]);
 
   if (matchesResult.error || commentsResult.error) {
@@ -413,14 +418,27 @@ async function loadRemoteMatches(showMessage = false) {
     return false;
   }
 
+  const reactionsByComment = new Map();
+  for (const row of reactionsResult.error ? [] : reactionsResult.data || []) {
+    const summary = reactionsByComment.get(row.comment_id) || { like: 0, dislike: 0, myReaction: "" };
+    if (row.reaction === "like") summary.like += 1;
+    if (row.reaction === "dislike") summary.dislike += 1;
+    if (state.currentUser?.id && row.user_id === state.currentUser.id) {
+      summary.myReaction = row.reaction;
+    }
+    reactionsByComment.set(row.comment_id, summary);
+  }
+
   const commentsByMatch = new Map();
   for (const row of commentsResult.data || []) {
     const list = commentsByMatch.get(row.match_id) || [];
     list.push({
       id: row.id,
+      userId: row.user_id || "",
       author: row.author || "익명",
       text: row.message || "",
       createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+      reactions: reactionsByComment.get(row.id) || { like: 0, dislike: 0, myReaction: "" },
     });
     commentsByMatch.set(row.match_id, list);
   }
@@ -438,6 +456,7 @@ function subscribeRemoteMatches() {
     .channel("nazun-match-updates")
     .on("postgres_changes", { event: "*", schema: "public", table: MATCH_TABLE }, () => loadRemoteMatches())
     .on("postgres_changes", { event: "*", schema: "public", table: COMMENT_TABLE }, () => loadRemoteMatches())
+    .on("postgres_changes", { event: "*", schema: "public", table: COMMENT_REACTION_TABLE }, () => loadRemoteMatches())
     .subscribe();
 }
 
@@ -494,6 +513,49 @@ async function deleteRemoteComment(commentId) {
     return false;
   }
   return true;
+}
+
+async function toggleCommentReaction(matchIndex, commentId, reaction) {
+  if (!supabaseClient) return;
+  if (!state.currentUser) {
+    openAuth("login");
+    return;
+  }
+
+  const match = state.matches[matchIndex];
+  const comment = (match?.comments || []).find((item) => item.id === commentId);
+  if (!comment) return;
+
+  const currentReaction = comment.reactions?.myReaction || "";
+  if (currentReaction === reaction) {
+    const { error } = await supabaseClient
+      .from(COMMENT_REACTION_TABLE)
+      .delete()
+      .eq("comment_id", commentId)
+      .eq("user_id", state.currentUser.id);
+    if (error) {
+      alert("반응 취소에 실패했습니다. Supabase 테이블을 확인하세요.");
+      return;
+    }
+  } else {
+    const { error } = await supabaseClient
+      .from(COMMENT_REACTION_TABLE)
+      .upsert(
+        {
+          comment_id: commentId,
+          user_id: state.currentUser.id,
+          reaction,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: "comment_id,user_id" }
+      );
+    if (error) {
+      alert("반응 저장에 실패했습니다. Supabase 테이블을 확인하세요.");
+      return;
+    }
+  }
+
+  await loadRemoteMatches();
 }
 
 function toggleTheme() {
@@ -655,6 +717,10 @@ function renderHistory() {
                               <button class="comment-delete" type="button" data-delete-comment="${index}:${escapeHtml(comment.id)}">삭제</button>
                             </div>
                             <p>${escapeHtml(comment.text || "")}</p>
+                            <div class="comment-reactions">
+                              <button class="comment-reaction-button ${comment.reactions?.myReaction === "like" ? "active" : ""}" type="button" data-comment-reaction="${index}:${escapeHtml(comment.id)}:like">좋아요 ${comment.reactions?.like || 0}</button>
+                              <button class="comment-reaction-button ${comment.reactions?.myReaction === "dislike" ? "active" : ""}" type="button" data-comment-reaction="${index}:${escapeHtml(comment.id)}:dislike">싫어요 ${comment.reactions?.dislike || 0}</button>
+                            </div>
                           </article>
                         `).join("")
                       : `<div class="empty comment-empty">댓글이 없습니다.</div>`
@@ -905,6 +971,7 @@ els.historyList.addEventListener("submit", async (event) => {
   match.comments = Array.isArray(match.comments) ? match.comments : [];
   const comment = {
     id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: state.currentUser?.id || "",
     author: getUserLabel(state.currentUser),
     text,
     createdAt: Date.now(),
@@ -921,17 +988,29 @@ els.historyList.addEventListener("submit", async (event) => {
 });
 
 els.historyList.addEventListener("click", async (event) => {
+  const reactionButton = event.target.closest("[data-comment-reaction]");
+  if (reactionButton) {
+    event.preventDefault();
+    const [matchIndexText, commentId, reaction] = reactionButton.dataset.commentReaction.split(":");
+    await toggleCommentReaction(Number(matchIndexText), commentId, reaction);
+    return;
+  }
+
   const deleteButton = event.target.closest("[data-delete-comment]");
   if (!deleteButton) return;
   event.preventDefault();
-  const password = prompt("관리자 비밀번호를 입력하세요.");
-  if (password !== ADMIN_PASSWORD) {
-    alert("비밀번호가 맞지 않습니다.");
-    return;
-  }
   const [matchIndexText, commentId] = deleteButton.dataset.deleteComment.split(":");
   const match = state.matches[Number(matchIndexText)];
   if (!match) return;
+  const targetComment = (match.comments || []).find((comment) => comment.id === commentId);
+  const isOwner = Boolean(state.currentUser?.id && targetComment?.userId === state.currentUser.id);
+  if (!isOwner) {
+    const password = prompt("관리자 비밀번호를 입력하세요.");
+    if (password !== ADMIN_PASSWORD) {
+      alert("비밀번호가 맞지 않습니다.");
+      return;
+    }
+  }
   match.comments = (match.comments || []).filter((comment) => comment.id !== commentId);
   saveMatches();
   renderManager();

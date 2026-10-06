@@ -10,6 +10,8 @@ const STAT_KEYS = ['라인전', '한타', '뇌지컬', '오더', '멘탈', '충�
 const DEFAULT_STATS = [0, 0, 0, 0, 0, 0, 0];
 const TIER_POST_TABLE = 'nazun_tier_posts';
 const TIER_COMMENT_TABLE = 'nazun_tier_comments';
+const TIER_REACTION_TABLE = 'nazun_tier_post_reactions';
+const TIER_COMMENT_REACTION_TABLE = 'nazun_tier_comment_reactions';
 const ADMIN_PASSWORD = 'jhs081115jhs';
 const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
 const supabaseClient = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey
@@ -330,9 +332,11 @@ async function loadSharedTierPosts() {
     return;
   }
 
-  const [postsResult, commentsResult] = await Promise.all([
+  const [postsResult, commentsResult, reactionsResult, commentReactionsResult] = await Promise.all([
     supabaseClient.from(TIER_POST_TABLE).select('*').order('created_at', { ascending: false }).limit(20),
-    supabaseClient.from(TIER_COMMENT_TABLE).select('*').order('created_at', { ascending: true })
+    supabaseClient.from(TIER_COMMENT_TABLE).select('*').order('created_at', { ascending: true }),
+    supabaseClient.from(TIER_REACTION_TABLE).select('*'),
+    supabaseClient.from(TIER_COMMENT_REACTION_TABLE).select('*')
   ]);
 
   if (postsResult.error || commentsResult.error) {
@@ -341,26 +345,50 @@ async function loadSharedTierPosts() {
     return;
   }
 
+  const user = await currentUser();
+  const reactionsByPost = new Map();
+  for (const row of reactionsResult.error ? [] : reactionsResult.data || []) {
+    const summary = reactionsByPost.get(row.post_id) || { agree: 0, hmm: 0, disagree: 0, myReaction: '' };
+    if (row.reaction === 'agree') summary.agree += 1;
+    if (row.reaction === 'hmm') summary.hmm += 1;
+    if (row.reaction === 'disagree') summary.disagree += 1;
+    if (user?.id && row.user_id === user.id) summary.myReaction = row.reaction;
+    reactionsByPost.set(row.post_id, summary);
+  }
+
+  const reactionsByComment = new Map();
+  for (const row of commentReactionsResult.error ? [] : commentReactionsResult.data || []) {
+    const summary = reactionsByComment.get(row.comment_id) || { like: 0, dislike: 0, myReaction: '' };
+    if (row.reaction === 'like') summary.like += 1;
+    if (row.reaction === 'dislike') summary.dislike += 1;
+    if (user?.id && row.user_id === user.id) summary.myReaction = row.reaction;
+    reactionsByComment.set(row.comment_id, summary);
+  }
+
   const commentsByPost = new Map();
   for (const row of commentsResult.data || []) {
     const list = commentsByPost.get(row.post_id) || [];
     list.push({
       id: row.id,
+      userId: row.user_id || '',
       author: row.author || '익명',
       text: row.message || '',
-      createdAt: row.created_at ? Date.parse(row.created_at) : Date.now()
+      createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+      reactions: reactionsByComment.get(row.id) || { like: 0, dislike: 0, myReaction: '' }
     });
     commentsByPost.set(row.post_id, list);
   }
 
   sharedTierPosts = (postsResult.data || []).map(row => ({
     id: row.id,
+    userId: row.user_id || '',
     author: row.author || '익명',
     note: row.note || '',
     placements: row.placements || {},
     stats: row.stats || {},
     createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
-    comments: commentsByPost.get(row.id) || []
+    comments: commentsByPost.get(row.id) || [],
+    reactions: reactionsByPost.get(row.id) || { agree: 0, hmm: 0, disagree: 0, myReaction: '' }
   }));
   renderSharedTierPosts();
 }
@@ -385,9 +413,17 @@ function renderSharedTierPosts(message = '') {
             <strong>${escapeHtml(post.author)}</strong>
             <small>${new Date(post.createdAt).toLocaleString('ko-KR')}</small>
           </div>
-          <button class="tier-comment-toggle" type="button" data-tier-comments="${index}">${open ? '접기' : `댓글 ${post.comments.length}`}</button>
+          <div class="shared-tier-actions">
+            <button class="tier-comment-toggle" type="button" data-tier-comments="${index}">${open ? '접기' : `댓글 ${post.comments.length}`}</button>
+            <button class="comment-delete" type="button" data-delete-tier-post="${index}">삭제</button>
+          </div>
         </div>
         <p class="shared-tier-note">${escapeHtml(post.note || '멘트 없음')}</p>
+        <div class="tier-reactions">
+          <button class="tier-reaction-button ${post.reactions?.myReaction === 'agree' ? 'active' : ''}" type="button" data-tier-reaction="${index}:agree">ㅇㅈ ${post.reactions?.agree || 0}</button>
+          <button class="tier-reaction-button ${post.reactions?.myReaction === 'hmm' ? 'active' : ''}" type="button" data-tier-reaction="${index}:hmm">흠 ${post.reactions?.hmm || 0}</button>
+          <button class="tier-reaction-button ${post.reactions?.myReaction === 'disagree' ? 'active' : ''}" type="button" data-tier-reaction="${index}:disagree">ㄴㅇㅈ ${post.reactions?.disagree || 0}</button>
+        </div>
         <div class="shared-tier-board">${groupedTierMarkup(post)}</div>
         ${
           open
@@ -403,6 +439,10 @@ function renderSharedTierPosts(message = '') {
                               <button class="comment-delete" type="button" data-delete-tier-comment="${index}:${escapeHtml(comment.id)}">삭제</button>
                             </div>
                             <p>${escapeHtml(comment.text)}</p>
+                            <div class="tier-comment-reactions">
+                              <button class="tier-comment-reaction-button ${comment.reactions?.myReaction === 'like' ? 'active' : ''}" type="button" data-tier-comment-reaction="${index}:${escapeHtml(comment.id)}:like">좋아요 ${comment.reactions?.like || 0}</button>
+                              <button class="tier-comment-reaction-button ${comment.reactions?.myReaction === 'dislike' ? 'active' : ''}" type="button" data-tier-comment-reaction="${index}:${escapeHtml(comment.id)}:dislike">싫어요 ${comment.reactions?.dislike || 0}</button>
+                            </div>
                           </article>
                         `).join('')
                       : `<div class="share-empty">댓글이 없습니다.</div>`
@@ -477,18 +517,132 @@ async function submitTierComment(index, text) {
 }
 
 async function deleteTierComment(index, commentId) {
-  const password = prompt('관리자 비밀번호를 입력하세요.');
-  if (password !== ADMIN_PASSWORD) {
-    alert('비밀번호가 맞지 않습니다.');
-    return;
-  }
   const post = sharedTierPosts[index];
   if (!post) return;
+  const user = await currentUser();
+  const comment = (post.comments || []).find(item => item.id === commentId);
+  const isOwner = Boolean(user?.id && comment?.userId === user.id);
+  if (!isOwner) {
+    const password = prompt('관리자 비밀번호를 입력하세요.');
+    if (password !== ADMIN_PASSWORD) {
+      alert('비밀번호가 맞지 않습니다.');
+      return;
+    }
+  }
   const { error } = await supabaseClient.from(TIER_COMMENT_TABLE).delete().eq('id', commentId);
   if (error) {
     alert('댓글 삭제에 실패했습니다.');
     return;
   }
+  openSharedComments.add(post.id);
+  await loadSharedTierPosts();
+}
+
+async function deleteTierPost(index) {
+  const post = sharedTierPosts[index];
+  if (!post || !supabaseClient) return;
+  const user = await currentUser();
+  const isOwner = Boolean(user?.id && post.userId === user.id);
+  if (!isOwner) {
+    const password = prompt('관리자 비밀번호를 입력하세요.');
+    if (password !== ADMIN_PASSWORD) {
+      alert('비밀번호가 맞지 않습니다.');
+      return;
+    }
+  }
+  const { error } = await supabaseClient.from(TIER_POST_TABLE).delete().eq('id', post.id);
+  if (error) {
+    alert('티어리스트 삭제에 실패했습니다.');
+    return;
+  }
+  openSharedComments.delete(post.id);
+  await loadSharedTierPosts();
+}
+
+async function toggleTierReaction(index, reaction) {
+  if (!supabaseClient) return;
+  const user = await currentUser();
+  if (!user) {
+    alert('로그인 후 반응을 남길 수 있습니다.');
+    return;
+  }
+
+  const post = sharedTierPosts[index];
+  if (!post) return;
+  const currentReaction = post.reactions?.myReaction || '';
+
+  if (currentReaction === reaction) {
+    const { error } = await supabaseClient
+      .from(TIER_REACTION_TABLE)
+      .delete()
+      .eq('post_id', post.id)
+      .eq('user_id', user.id);
+    if (error) {
+      alert('반응 취소에 실패했습니다. Supabase 테이블을 확인하세요.');
+      return;
+    }
+  } else {
+    const { error } = await supabaseClient
+      .from(TIER_REACTION_TABLE)
+      .upsert(
+        {
+          post_id: post.id,
+          user_id: user.id,
+          reaction,
+          created_at: new Date().toISOString()
+        },
+        { onConflict: 'post_id,user_id' }
+      );
+    if (error) {
+      alert('반응 저장에 실패했습니다. Supabase 테이블을 확인하세요.');
+      return;
+    }
+  }
+
+  await loadSharedTierPosts();
+}
+
+async function toggleTierCommentReaction(index, commentId, reaction) {
+  if (!supabaseClient) return;
+  const user = await currentUser();
+  if (!user) {
+    alert('로그인 후 반응을 남길 수 있습니다.');
+    return;
+  }
+
+  const post = sharedTierPosts[index];
+  const comment = (post?.comments || []).find(item => item.id === commentId);
+  if (!comment) return;
+  const currentReaction = comment.reactions?.myReaction || '';
+
+  if (currentReaction === reaction) {
+    const { error } = await supabaseClient
+      .from(TIER_COMMENT_REACTION_TABLE)
+      .delete()
+      .eq('comment_id', commentId)
+      .eq('user_id', user.id);
+    if (error) {
+      alert('반응 취소에 실패했습니다. Supabase 테이블을 확인하세요.');
+      return;
+    }
+  } else {
+    const { error } = await supabaseClient
+      .from(TIER_COMMENT_REACTION_TABLE)
+      .upsert(
+        {
+          comment_id: commentId,
+          user_id: user.id,
+          reaction,
+          created_at: new Date().toISOString()
+        },
+        { onConflict: 'comment_id,user_id' }
+      );
+    if (error) {
+      alert('반응 저장에 실패했습니다. Supabase 테이블을 확인하세요.');
+      return;
+    }
+  }
+
   openSharedComments.add(post.id);
   await loadSharedTierPosts();
 }
@@ -528,6 +682,20 @@ function init() {
   });
   document.getElementById('publishTierButton').addEventListener('click', publishTierList);
   document.getElementById('sharedTierList').addEventListener('click', event => {
+    const reactionButton = event.target.closest('[data-tier-reaction]');
+    if (reactionButton) {
+      const [index, reaction] = reactionButton.dataset.tierReaction.split(':');
+      toggleTierReaction(Number(index), reaction);
+      return;
+    }
+
+    const commentReactionButton = event.target.closest('[data-tier-comment-reaction]');
+    if (commentReactionButton) {
+      const [index, commentId, reaction] = commentReactionButton.dataset.tierCommentReaction.split(':');
+      toggleTierCommentReaction(Number(index), commentId, reaction);
+      return;
+    }
+
     const toggle = event.target.closest('[data-tier-comments]');
     if (toggle) {
       const post = sharedTierPosts[Number(toggle.dataset.tierComments)];
@@ -541,6 +709,11 @@ function init() {
     if (deleteButton) {
       const [index, commentId] = deleteButton.dataset.deleteTierComment.split(':');
       deleteTierComment(Number(index), commentId);
+      return;
+    }
+    const deletePostButton = event.target.closest('[data-delete-tier-post]');
+    if (deletePostButton) {
+      deleteTierPost(Number(deletePostButton.dataset.deleteTierPost));
     }
   });
   document.getElementById('sharedTierList').addEventListener('submit', event => {
@@ -560,6 +733,8 @@ function init() {
       .channel('nazun-tier-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: TIER_POST_TABLE }, () => loadSharedTierPosts())
       .on('postgres_changes', { event: '*', schema: 'public', table: TIER_COMMENT_TABLE }, () => loadSharedTierPosts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: TIER_REACTION_TABLE }, () => loadSharedTierPosts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: TIER_COMMENT_REACTION_TABLE }, () => loadSharedTierPosts())
       .subscribe();
   }
 }

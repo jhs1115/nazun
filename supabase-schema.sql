@@ -35,6 +35,30 @@ create table if not exists public.nazun_tier_comments (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.nazun_match_comment_reactions (
+  comment_id text not null references public.nazun_match_comments(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reaction text not null check (reaction in ('like', 'dislike')),
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id)
+);
+
+create table if not exists public.nazun_tier_post_reactions (
+  post_id text not null references public.nazun_tier_posts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reaction text not null check (reaction in ('agree', 'hmm', 'disagree')),
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create table if not exists public.nazun_tier_comment_reactions (
+  comment_id text not null references public.nazun_tier_comments(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reaction text not null check (reaction in ('like', 'dislike')),
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id)
+);
+
 create index if not exists nazun_matches_created_at_idx
 on public.nazun_matches(created_at desc);
 
@@ -47,10 +71,22 @@ on public.nazun_tier_posts(created_at desc);
 create index if not exists nazun_tier_comments_post_created_idx
 on public.nazun_tier_comments(post_id, created_at asc);
 
+create index if not exists nazun_match_comment_reactions_comment_idx
+on public.nazun_match_comment_reactions(comment_id);
+
+create index if not exists nazun_tier_post_reactions_post_idx
+on public.nazun_tier_post_reactions(post_id);
+
+create index if not exists nazun_tier_comment_reactions_comment_idx
+on public.nazun_tier_comment_reactions(comment_id);
+
 alter table public.nazun_matches enable row level security;
 alter table public.nazun_match_comments enable row level security;
 alter table public.nazun_tier_posts enable row level security;
 alter table public.nazun_tier_comments enable row level security;
+alter table public.nazun_match_comment_reactions enable row level security;
+alter table public.nazun_tier_post_reactions enable row level security;
+alter table public.nazun_tier_comment_reactions enable row level security;
 
 drop policy if exists "nazun matches visible" on public.nazun_matches;
 create policy "nazun matches visible"
@@ -100,6 +136,12 @@ on public.nazun_tier_posts for insert
 to authenticated
 with check (auth.uid() = user_id);
 
+drop policy if exists "nazun tier posts deletable by logged in users" on public.nazun_tier_posts;
+create policy "nazun tier posts deletable by logged in users"
+on public.nazun_tier_posts for delete
+to authenticated
+using (true);
+
 drop policy if exists "nazun tier comments visible" on public.nazun_tier_comments;
 create policy "nazun tier comments visible"
 on public.nazun_tier_comments for select
@@ -118,10 +160,88 @@ on public.nazun_tier_comments for delete
 to authenticated
 using (true);
 
+drop policy if exists "nazun match comment reactions visible" on public.nazun_match_comment_reactions;
+create policy "nazun match comment reactions visible"
+on public.nazun_match_comment_reactions for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun match comment reactions writable by owner" on public.nazun_match_comment_reactions;
+create policy "nazun match comment reactions writable by owner"
+on public.nazun_match_comment_reactions for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun match comment reactions updatable by owner" on public.nazun_match_comment_reactions;
+create policy "nazun match comment reactions updatable by owner"
+on public.nazun_match_comment_reactions for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun match comment reactions deletable by owner" on public.nazun_match_comment_reactions;
+create policy "nazun match comment reactions deletable by owner"
+on public.nazun_match_comment_reactions for delete
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "nazun tier post reactions visible" on public.nazun_tier_post_reactions;
+create policy "nazun tier post reactions visible"
+on public.nazun_tier_post_reactions for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun tier post reactions writable by owner" on public.nazun_tier_post_reactions;
+create policy "nazun tier post reactions writable by owner"
+on public.nazun_tier_post_reactions for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun tier post reactions updatable by owner" on public.nazun_tier_post_reactions;
+create policy "nazun tier post reactions updatable by owner"
+on public.nazun_tier_post_reactions for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun tier post reactions deletable by owner" on public.nazun_tier_post_reactions;
+create policy "nazun tier post reactions deletable by owner"
+on public.nazun_tier_post_reactions for delete
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "nazun tier comment reactions visible" on public.nazun_tier_comment_reactions;
+create policy "nazun tier comment reactions visible"
+on public.nazun_tier_comment_reactions for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun tier comment reactions writable by owner" on public.nazun_tier_comment_reactions;
+create policy "nazun tier comment reactions writable by owner"
+on public.nazun_tier_comment_reactions for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun tier comment reactions updatable by owner" on public.nazun_tier_comment_reactions;
+create policy "nazun tier comment reactions updatable by owner"
+on public.nazun_tier_comment_reactions for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun tier comment reactions deletable by owner" on public.nazun_tier_comment_reactions;
+create policy "nazun tier comment reactions deletable by owner"
+on public.nazun_tier_comment_reactions for delete
+to authenticated
+using (auth.uid() = user_id);
+
 alter table public.nazun_matches replica identity full;
 alter table public.nazun_match_comments replica identity full;
 alter table public.nazun_tier_posts replica identity full;
 alter table public.nazun_tier_comments replica identity full;
+alter table public.nazun_match_comment_reactions replica identity full;
+alter table public.nazun_tier_post_reactions replica identity full;
+alter table public.nazun_tier_comment_reactions replica identity full;
 
 do $$
 begin
@@ -163,5 +283,35 @@ begin
       and tablename = 'nazun_tier_comments'
   ) then
     alter publication supabase_realtime add table public.nazun_tier_comments;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'nazun_match_comment_reactions'
+  ) then
+    alter publication supabase_realtime add table public.nazun_match_comment_reactions;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'nazun_tier_post_reactions'
+  ) then
+    alter publication supabase_realtime add table public.nazun_tier_post_reactions;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'nazun_tier_comment_reactions'
+  ) then
+    alter publication supabase_realtime add table public.nazun_tier_comment_reactions;
   end if;
 end $$;
