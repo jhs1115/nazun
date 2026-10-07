@@ -503,8 +503,8 @@ async function createMatchPointMails(match) {
   const winners = match.winner === "blue" ? match.blue : match.red;
   const losers = match.winner === "blue" ? match.red : match.blue;
   const rows = [
-    ...winners.map((name) => ({ name, result: "win", amount: 50 })),
-    ...losers.map((name) => ({ name, result: "loss", amount: 25 })),
+    ...winners.map((name) => ({ name, result: "win", amount: 20 })),
+    ...losers.map((name) => ({ name, result: "loss", amount: 10 })),
   ].map((reward) => ({
     id: `${matchId}-${reward.name}`.replace(/[^\w가-힣-]/g, "_"),
     match_id: matchId,

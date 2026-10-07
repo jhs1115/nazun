@@ -274,6 +274,39 @@ body.dark-mode .tier-note-input {
   border-color: #d8e0ef;
 }
 
+body.dark-mode .shared-tier-card .shared-tier-top strong,
+body.dark-mode .shared-tier-card .shared-tier-note,
+body.dark-mode .shared-tier-card .shared-tier-row span,
+body.dark-mode .shared-tier-card .tier-comment-item p,
+body.dark-mode .shared-tier-card .tier-comment-form input {
+  color: #20263a;
+}
+
+body.dark-mode .shared-tier-card .shared-tier-top small {
+  color: #8b96ab;
+}
+
+body.dark-mode .shared-tier-card .tier-comment-item strong {
+  color: #597fc6;
+}
+
+body.dark-mode .shared-tier-card .shared-tier-row,
+body.dark-mode .shared-tier-card .tier-comment-item,
+body.dark-mode .shared-tier-card .tier-comment-form input {
+  background: #ffffff;
+  border-color: #273044;
+}
+
+body.dark-mode .shared-tier-card .tier-comments-panel {
+  border-color: #d8e0ef;
+}
+
+body.dark-mode .shared-tier-card .share-empty {
+  color: #6f7890;
+  background: #f4f6fb;
+  border-color: #d8e0ef;
+}
+
 .shared-tier-top {
   display: flex;
   align-items: flex-start;
