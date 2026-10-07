@@ -168,6 +168,7 @@ const POINT_CODES = {
   lemon: 100,
   lemon_2: 100,
   lemon_lemon: 200,
+  beta_point: 30,
 };
 
 function readStore(key, fallback) {
