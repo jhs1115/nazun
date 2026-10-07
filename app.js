@@ -157,12 +157,18 @@ const state = {
   inventoryTab: "title",
   gachaBusy: false,
   pendingRewardTitle: "",
+  commentDrafts: {},
   remoteMatchesReady: false,
   realtimeChannel: null,
   profileRealtimeChannel: null,
 };
 
 const ADMIN_PASSWORD = "jhs081115jhs";
+const POINT_CODES = {
+  lemon: 100,
+  lemon_2: 100,
+  lemon_lemon: 200,
+};
 
 function readStore(key, fallback) {
   try {
@@ -677,7 +683,7 @@ async function drawTitle() {
   state.pendingRewardTitle = "";
   renderGacha();
   els.gachaMachine.classList.add("is-drawing");
-  els.gachaTray.innerHTML = `<div class="reward-capsule"></div>`;
+  els.gachaTray.innerHTML = `<div class="reward-capsule capsule-${reward.grade}"></div>`;
   setCapsuleMessage("캡슐이 나오고 있습니다.");
 
   window.setTimeout(async () => {
@@ -687,7 +693,7 @@ async function drawTitle() {
     state.gachaBusy = false;
     state.pendingRewardTitle = reward.id;
     els.gachaMachine.classList.remove("is-drawing");
-    els.gachaTray.innerHTML = `<button class="reward-capsule opened" type="button" data-open-capsule aria-label="캡슐 열기"></button>`;
+    els.gachaTray.innerHTML = `<button class="reward-capsule opened capsule-${reward.grade}" type="button" data-open-capsule aria-label="캡슐 열기"></button>`;
     setCapsuleMessage("캡슐을 클릭하세요.");
     renderCollectibles();
   }, 1050);
@@ -876,7 +882,7 @@ async function redeemMailboxCode() {
     setMessage(els.mailboxMessage, "코드를 입력하세요.", true);
     return;
   }
-  if (!["lemon", "jhs6974"].includes(code)) {
+  if (!POINT_CODES[code] && code !== "jhs6974") {
     setMessage(els.mailboxMessage, "없는 코드입니다.", true);
     return;
   }
@@ -886,8 +892,8 @@ async function redeemMailboxCode() {
   }
 
   els.mailboxCodeButton.disabled = true;
-  if (code === "lemon") {
-    state.points = (Number(state.points) || 0) + 100;
+  if (POINT_CODES[code]) {
+    state.points = (Number(state.points) || 0) + POINT_CODES[code];
   }
   if (code === "jhs6974" && !state.ownedTitles.includes("developer")) {
     state.ownedTitles = [...state.ownedTitles, "developer"];
@@ -896,7 +902,7 @@ async function redeemMailboxCode() {
   await savePointState();
   els.mailboxCodeInput.value = "";
   els.mailboxCodeButton.disabled = false;
-  setMessage(els.mailboxMessage, code === "lemon" ? "100P를 받았습니다." : "개발자 칭호를 받았습니다.");
+  setMessage(els.mailboxMessage, POINT_CODES[code] ? `${POINT_CODES[code]}P를 받았습니다.` : "개발자 칭호를 받았습니다.");
 }
 
 function renderAuth() {
@@ -1386,6 +1392,7 @@ function renderHistory() {
       const matchId = getMatchId(match);
       const comments = Array.isArray(match.comments) ? match.comments : [];
       const isOpen = state.openComments.has(matchId);
+      const draft = state.commentDrafts[matchId] || "";
       const el = document.createElement("div");
       el.className = `history-row ${isOpen ? "comments-open" : ""}`;
       const winner = match.winner === "blue" ? "블루팀" : "레드팀";
@@ -1426,8 +1433,8 @@ function renderHistory() {
                       : `<div class="empty comment-empty">댓글이 없습니다.</div>`
                   }
                 </div>
-                <form class="comment-form" data-comment-form="${index}">
-                  <input name="comment" maxlength="160" placeholder="댓글 입력" autocomplete="off" />
+                <form class="comment-form" data-comment-form="${index}" data-comment-match-id="${escapeHtml(matchId)}">
+                  <input name="comment" maxlength="160" placeholder="댓글 입력" autocomplete="off" value="${escapeHtml(draft)}" />
                   <button type="submit">등록</button>
                 </form>
               </div>
@@ -1721,6 +1728,17 @@ els.historyList.addEventListener("click", (event) => {
   renderManager();
 });
 
+els.historyList.addEventListener("input", (event) => {
+  const input = event.target.closest('[name="comment"]');
+  if (!input) return;
+  const form = input.closest("[data-comment-form]");
+  if (!form) return;
+  const match = state.matches[Number(form.dataset.commentForm)];
+  const matchId = form.dataset.commentMatchId || (match ? getMatchId(match) : "");
+  if (!matchId) return;
+  state.commentDrafts[matchId] = input.value;
+});
+
 els.historyList.addEventListener("submit", async (event) => {
   const form = event.target.closest("[data-comment-form]");
   if (!form) return;
@@ -1735,6 +1753,7 @@ els.historyList.addEventListener("submit", async (event) => {
   const input = form.elements.comment;
   const text = input.value.trim();
   if (!match || !text) return;
+  const matchId = form.dataset.commentMatchId || getMatchId(match);
 
   match.comments = Array.isArray(match.comments) ? match.comments : [];
   const comment = {
@@ -1745,7 +1764,8 @@ els.historyList.addEventListener("submit", async (event) => {
     createdAt: Date.now(),
   };
   match.comments.push(comment);
-  state.openComments.add(getMatchId(match));
+  state.openComments.add(matchId);
+  delete state.commentDrafts[matchId];
   input.value = "";
   saveMatches();
   renderManager();
