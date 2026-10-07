@@ -340,6 +340,12 @@ to authenticated
 using (true)
 with check (true);
 
+drop policy if exists "nazun user profiles deletable by logged in users" on public.nazun_user_profiles;
+create policy "nazun user profiles deletable by logged in users"
+on public.nazun_user_profiles for delete
+to authenticated
+using (true);
+
 alter table public.nazun_matches replica identity full;
 alter table public.nazun_match_comments replica identity full;
 alter table public.nazun_tier_posts replica identity full;

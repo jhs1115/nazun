@@ -145,6 +145,7 @@ const state = {
   currentUser: null,
   editingPlayerIndex: null,
   editingProfileUserId: "",
+  editingProfileOldName: "",
   adminUnlocked: false,
   openComments: new Set(),
   points: 0,
@@ -314,6 +315,7 @@ async function loadUserProfiles() {
   }
   state.players = (data || []).map(profileToPlayer).filter((player) => player.name && player.name !== "이름 없음");
   savePlayers();
+  renderAuth();
   renderManager();
 }
 
@@ -403,6 +405,7 @@ function openPlayerEditModal(index) {
   const player = state.players[index];
   if (!player) return;
   state.editingProfileUserId = player.userId;
+  state.editingProfileOldName = player.name;
   els.editPlayerNameInput.value = player.name;
   els.editPlayerTierInput.value = player.tier;
   els.editPlayerLaneInput.value = player.lane;
@@ -416,6 +419,36 @@ function closePlayerEditModal() {
   els.playerEditModal.classList.remove("open");
   els.playerEditModal.setAttribute("aria-hidden", "true");
   state.editingProfileUserId = "";
+  state.editingProfileOldName = "";
+}
+
+function replacePlayerNameInMatch(match, oldName, nextName) {
+  let changed = false;
+  const replace = (name) => {
+    if (name !== oldName) return name;
+    changed = true;
+    return nextName;
+  };
+  match.blue = (match.blue || []).map(replace);
+  match.red = (match.red || []).map(replace);
+  return changed;
+}
+
+async function syncRenamedPlayerInMatches(oldName, nextName) {
+  if (!oldName || oldName === nextName) return;
+  const changedMatches = state.matches.filter((match) => replacePlayerNameInMatch(match, oldName, nextName));
+  if (changedMatches.length) {
+    saveMatches();
+    renderManager();
+  }
+  if (!supabaseClient || !changedMatches.length) return;
+  await Promise.all(changedMatches.map((match) => supabaseClient
+    .from(MATCH_TABLE)
+    .update({
+      blue: match.blue,
+      red: match.red,
+    })
+    .eq("id", getMatchId(match))));
 }
 
 async function saveEditedPlayerProfile() {
@@ -426,6 +459,7 @@ async function saveEditedPlayerProfile() {
     return;
   }
   els.playerEditSaveButton.disabled = true;
+  const oldName = state.editingProfileOldName;
   const { error } = await supabaseClient
     .from(PROFILE_TABLE)
     .update({
@@ -440,7 +474,51 @@ async function saveEditedPlayerProfile() {
     setMessage(els.playerEditMessage, "수정에 실패했습니다. Supabase 권한을 확인하세요.", true);
     return;
   }
+  if (state.currentUser?.id === state.editingProfileUserId) {
+    const { data } = await supabaseClient.auth.updateUser({
+      data: {
+        display_name: nickname,
+        lol_name: nickname,
+      },
+    });
+    state.currentUser = data?.user || state.currentUser;
+    renderAuth();
+  }
+  await syncRenamedPlayerInMatches(oldName, nickname);
   closePlayerEditModal();
+  await loadUserProfiles();
+  await loadMailboxRewards();
+}
+
+async function deletePlayerProfile(index) {
+  const player = state.players[index];
+  if (!player?.userId || !checkSupabaseReady(els.adminMessage)) return;
+  const confirmed = confirm(`${player.name} 참가자를 삭제할까요?`);
+  if (!confirmed) return;
+
+  const { error } = await supabaseClient
+    .from(PROFILE_TABLE)
+    .delete()
+    .eq("user_id", player.userId);
+  if (error) {
+    alert("참가자 삭제에 실패했습니다. Supabase 삭제 정책을 확인하세요.");
+    return;
+  }
+
+  state.players = state.players.filter((item) => item.userId !== player.userId);
+  savePlayers();
+  renderManager();
+  if (state.currentUser?.id === player.userId) {
+    await supabaseClient.auth.updateUser({
+      data: {
+        display_name: "",
+        lol_name: "",
+      },
+    });
+    const { data } = await supabaseClient.auth.getUser();
+    state.currentUser = data.user || state.currentUser;
+    renderAuth();
+  }
   await loadUserProfiles();
 }
 
@@ -858,6 +936,8 @@ function togglePassword(input, button) {
 }
 
 function getUserLabel(user) {
+  const profileName = state.players.find((player) => player.userId && player.userId === user?.id)?.name;
+  if (profileName) return profileName;
   return user?.user_metadata?.lol_name || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "";
 }
 
@@ -1280,6 +1360,7 @@ function renderPlayers() {
         </div>
         <div class="row-actions">
           <button class="ghost" type="button" data-edit-player="${index}">수정</button>
+          <button class="ghost" type="button" data-remove-player="${index}">삭제</button>
         </div>
       `;
       return row;
@@ -1635,7 +1716,11 @@ els.adminPlayerList.addEventListener("click", (event) => {
   const editButton = event.target.closest("[data-edit-player]");
   if (editButton) {
     openPlayerEditModal(Number(editButton.dataset.editPlayer));
+    return;
   }
+  const removeButton = event.target.closest("[data-remove-player]");
+  if (!removeButton) return;
+  deletePlayerProfile(Number(removeButton.dataset.removePlayer));
 });
 
 els.adminHistoryList.addEventListener("click", async (event) => {
