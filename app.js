@@ -1,14 +1,26 @@
 const els = {
   authOpenButton: document.querySelector("#authOpenButton"),
   userMenu: document.querySelector("#userMenu"),
+  mailboxOpenButton: document.querySelector("#mailboxOpenButton"),
+  lolpsButton: document.querySelector("#lolpsButton"),
   openRenameButton: document.querySelector("#openRenameButton"),
   logoutButton: document.querySelector("#logoutButton"),
+  pointAmount: document.querySelector("#pointAmount"),
   patchNoteButton: document.querySelector("#patchNoteButton"),
   themeToggle: document.querySelector("#themeToggle"),
   menuToggle: document.querySelector("#menuToggle"),
   screenTabs: document.querySelector("#screenTabs"),
   tabs: document.querySelectorAll(".tab"),
   views: document.querySelectorAll(".view"),
+  gachaModeButtons: document.querySelectorAll("[data-gacha-mode]"),
+  gachaMachine: document.querySelector("#gachaMachine"),
+  gachaDrawButton: document.querySelector("#gachaDrawButton"),
+  gachaDrawPanelButton: document.querySelector("#gachaDrawPanelButton"),
+  gachaTray: document.querySelector("#gachaTray"),
+  gachaResult: document.querySelector("#gachaResult"),
+  rateList: document.querySelector("#rateList"),
+  inventoryTabs: document.querySelectorAll("[data-inventory-tab]"),
+  inventoryList: document.querySelector("#inventoryList"),
   playerForm: document.querySelector("#playerForm"),
   playerNameInput: document.querySelector("#playerNameInput"),
   playerTierInput: document.querySelector("#playerTierInput"),
@@ -56,13 +68,26 @@ const els = {
   renameNameInput: document.querySelector("#renameNameInput"),
   renamePasswordInput: document.querySelector("#renamePasswordInput"),
   renameMessage: document.querySelector("#renameMessage"),
+  mailboxModal: document.querySelector("#mailboxModal"),
+  mailboxCloseButton: document.querySelector("#mailboxCloseButton"),
+  mailboxCodeInput: document.querySelector("#mailboxCodeInput"),
+  mailboxCodeButton: document.querySelector("#mailboxCodeButton"),
+  mailboxList: document.querySelector("#mailboxList"),
+  mailboxMessage: document.querySelector("#mailboxMessage"),
 };
 
 const PLAYER_STORE_KEY = "nazun-players-v2";
 const MATCH_STORE_KEY = "nazun-matches";
+const POINT_STORE_KEY = "nazun-points-v1";
+const REDEEMED_CODE_STORE_KEY = "nazun-redeemed-codes-v1";
+const OWNED_TITLE_STORE_KEY = "nazun-owned-titles-v1";
+const EQUIPPED_TITLE_STORE_KEY = "nazun-equipped-title-v1";
+const ITEM_STORE_KEY = "nazun-items-v1";
 const MATCH_TABLE = "nazun_matches";
 const COMMENT_TABLE = "nazun_match_comments";
 const COMMENT_REACTION_TABLE = "nazun_match_comment_reactions";
+const POINT_TABLE = "nazun_user_points";
+const MAIL_TABLE = "nazun_match_point_mails";
 const MAX_MATCHES = 10;
 const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
 const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
@@ -70,6 +95,34 @@ const supabaseClient = SUPABASE_READY
   ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
   : null;
 const AUTH_REDIRECT_URL = SUPABASE_CONFIG.redirectUrl || `${window.location.origin}${window.location.pathname}`;
+const TITLE_DRAW_COST = 10;
+const TITLE_RATES = [
+  { grade: "common", label: "COMMON", rate: 45 },
+  { grade: "uncommon", label: "UNCOMMON", rate: 28 },
+  { grade: "rare", label: "RARE", rate: 17 },
+  { grade: "epic", label: "EPIC", rate: 8 },
+  { grade: "legendary", label: "LEGENDARY", rate: 2 },
+];
+const TITLE_CATALOG = [
+  { id: "good-inhouse", name: "내전이 좋은", grade: "common" },
+  { id: "handsome", name: "잘생긴", grade: "common" },
+  { id: "pretty", name: "예쁜", grade: "common" },
+  { id: "normal", name: "평범한", grade: "common" },
+  { id: "strongest", name: "최강", grade: "uncommon" },
+  { id: "serious-inhouse", name: "내전에 진심인", grade: "uncommon" },
+  { id: "dirty-game", name: "더럽게 게임하는", grade: "uncommon" },
+  { id: "solid", name: "단단한", grade: "uncommon" },
+  { id: "bug", name: "벌레", grade: "rare" },
+  { id: "life-inhouse", name: "내전에 목숨건", grade: "rare" },
+  { id: "jangcheon", name: "장천동부모도둑", grade: "rare" },
+  { id: "not-fool", name: "절대 바보가 아닌", grade: "rare" },
+  { id: "princess", name: "공주", grade: "epic" },
+  { id: "king", name: "KING", grade: "epic" },
+  { id: "big-heart", name: "가슴이 큰", grade: "epic" },
+  { id: "devil", name: "내전의 악마", grade: "legendary" },
+  { id: "predator", name: "PREDATOR", grade: "legendary" },
+  { id: "developer", name: "개발자", grade: "special" },
+];
 
 const state = {
   players: readStore(PLAYER_STORE_KEY, []),
@@ -78,6 +131,15 @@ const state = {
   editingPlayerIndex: null,
   adminUnlocked: false,
   openComments: new Set(),
+  points: 0,
+  redeemedCodes: [],
+  ownedTitles: [],
+  equippedTitle: "",
+  items: {},
+  mailboxRewards: [],
+  gachaMode: "title",
+  inventoryTab: "title",
+  gachaBusy: false,
   remoteMatchesReady: false,
   realtimeChannel: null,
 };
@@ -119,6 +181,353 @@ function splitNames(value) {
 
 function playerByName(name) {
   return state.players.find((player) => player.name === name);
+}
+
+function pointOwnerKey() {
+  return state.currentUser?.id || state.currentUser?.email || "guest";
+}
+
+function pointMapKey(baseKey) {
+  return `${baseKey}:${pointOwnerKey()}`;
+}
+
+function loadLocalPointState() {
+  state.points = Number(localStorage.getItem(pointMapKey(POINT_STORE_KEY)) || 0);
+  state.redeemedCodes = readStore(pointMapKey(REDEEMED_CODE_STORE_KEY), []);
+  state.ownedTitles = readStore(pointMapKey(OWNED_TITLE_STORE_KEY), []);
+  state.equippedTitle = localStorage.getItem(pointMapKey(EQUIPPED_TITLE_STORE_KEY)) || "";
+  state.items = readStore(pointMapKey(ITEM_STORE_KEY), {});
+  renderPoints();
+  renderCollectibles();
+}
+
+function saveLocalPointState() {
+  localStorage.setItem(pointMapKey(POINT_STORE_KEY), String(state.points));
+  writeStore(pointMapKey(REDEEMED_CODE_STORE_KEY), state.redeemedCodes);
+  writeStore(pointMapKey(OWNED_TITLE_STORE_KEY), state.ownedTitles);
+  localStorage.setItem(pointMapKey(EQUIPPED_TITLE_STORE_KEY), state.equippedTitle || "");
+  writeStore(pointMapKey(ITEM_STORE_KEY), state.items);
+}
+
+function renderPoints() {
+  els.pointAmount.textContent = `${Number(state.points) || 0}P`;
+}
+
+async function loadPointState() {
+  loadLocalPointState();
+  loadMailboxRewards();
+  if (!supabaseClient || !state.currentUser?.id) return;
+
+  const { data, error } = await supabaseClient
+    .from(POINT_TABLE)
+    .select("points, redeemed_codes, owned_titles, equipped_title, items")
+    .eq("user_id", state.currentUser.id)
+    .maybeSingle();
+
+  if (error) return;
+  if (!data) {
+    await supabaseClient.from(POINT_TABLE).upsert({
+      user_id: state.currentUser.id,
+      points: state.points,
+      redeemed_codes: state.redeemedCodes,
+      owned_titles: state.ownedTitles,
+      equipped_title: state.equippedTitle,
+      items: state.items,
+      updated_at: new Date().toISOString(),
+    });
+    return;
+  }
+
+  state.points = Number(data.points) || 0;
+  state.redeemedCodes = Array.isArray(data.redeemed_codes) ? data.redeemed_codes : [];
+  state.ownedTitles = Array.isArray(data.owned_titles) ? data.owned_titles : [];
+  state.equippedTitle = data.equipped_title || "";
+  state.items = data.items && typeof data.items === "object" ? data.items : {};
+  saveLocalPointState();
+  renderPoints();
+  renderCollectibles();
+}
+
+async function savePointState() {
+  saveLocalPointState();
+  renderPoints();
+  if (!supabaseClient || !state.currentUser?.id) return;
+  await supabaseClient
+    .from(POINT_TABLE)
+    .upsert({
+      user_id: state.currentUser.id,
+      points: state.points,
+      redeemed_codes: state.redeemedCodes,
+      owned_titles: state.ownedTitles,
+      equipped_title: state.equippedTitle,
+      items: state.items,
+      updated_at: new Date().toISOString(),
+    });
+}
+
+function renderMailbox() {
+  if (!els.mailboxList) return;
+  if (!state.currentUser) {
+    els.mailboxList.innerHTML = `<p class="mailbox-empty">로그인 후 우편함을 확인하세요.</p>`;
+    return;
+  }
+  if (!state.mailboxRewards.length) {
+    els.mailboxList.innerHTML = `<p class="mailbox-empty">우편이 없습니다.</p>`;
+    return;
+  }
+
+  els.mailboxList.innerHTML = state.mailboxRewards.map((mail) => `
+    <article class="mailbox-item">
+      <div>
+        <strong>${mail.result === "win" ? "승리 보상" : "패배 보상"}</strong>
+        <small>${formatDate(mail.createdAt)} 경기 ${mail.result === "win" ? "승리" : "패배"} 기록 보상입니다.</small>
+        <span>${Number(mail.amount) || 0}P</span>
+      </div>
+      <button class="mail-claim-button" type="button" data-claim-mail="${escapeHtml(mail.id)}">받기</button>
+    </article>
+  `).join("");
+}
+
+async function loadMailboxRewards() {
+  state.mailboxRewards = [];
+  renderMailbox();
+  if (!supabaseClient || !state.currentUser) return;
+
+  const playerName = getUserLabel(state.currentUser);
+  if (!playerName) return;
+  const { data, error } = await supabaseClient
+    .from(MAIL_TABLE)
+    .select("*")
+    .eq("player_name", playerName)
+    .is("claimed_at", null)
+    .order("created_at", { ascending: false });
+  if (error) return;
+
+  state.mailboxRewards = (data || []).map((row) => ({
+    id: row.id,
+    amount: Number(row.amount) || 0,
+    result: row.result === "win" ? "win" : "loss",
+    createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+  }));
+  renderMailbox();
+}
+
+async function createMatchPointMails(match) {
+  if (!supabaseClient) return;
+  const matchId = getMatchId(match);
+  const winners = match.winner === "blue" ? match.blue : match.red;
+  const losers = match.winner === "blue" ? match.red : match.blue;
+  const rows = [
+    ...winners.map((name) => ({ name, result: "win", amount: 50 })),
+    ...losers.map((name) => ({ name, result: "loss", amount: 25 })),
+  ].map((reward) => ({
+    id: `${matchId}-${reward.name}`.replace(/[^\w가-힣-]/g, "_"),
+    match_id: matchId,
+    player_name: reward.name,
+    result: reward.result,
+    amount: reward.amount,
+    created_at: new Date(match.createdAt || Date.now()).toISOString(),
+  }));
+
+  await supabaseClient.from(MAIL_TABLE).upsert(rows, { onConflict: "id" });
+  await loadMailboxRewards();
+}
+
+async function claimMatchMail(mailId) {
+  if (!supabaseClient || !state.currentUser) return;
+  const mail = state.mailboxRewards.find((item) => item.id === mailId);
+  if (!mail) return;
+  const { error } = await supabaseClient
+    .from(MAIL_TABLE)
+    .update({
+      claimed_by: state.currentUser.id,
+      claimed_at: new Date().toISOString(),
+    })
+    .eq("id", mailId)
+    .is("claimed_at", null);
+  if (error) {
+    setMessage(els.mailboxMessage, "우편 수령에 실패했습니다. Supabase 테이블을 확인하세요.", true);
+    return;
+  }
+
+  state.points = (Number(state.points) || 0) + mail.amount;
+  await savePointState();
+  setMessage(els.mailboxMessage, `${mail.amount}P를 받았습니다.`);
+  await loadMailboxRewards();
+}
+
+function titleById(id) {
+  return TITLE_CATALOG.find((title) => title.id === id);
+}
+
+function titleClass(title) {
+  return `title-chip title-${title?.grade || "common"}`;
+}
+
+function titleMarkup(title) {
+  if (!title) return "";
+  return `<span class="${titleClass(title)}">${escapeHtml(title.name)}</span>`;
+}
+
+function equippedTitleMarkup() {
+  return titleMarkup(titleById(state.equippedTitle));
+}
+
+function decorateName(name) {
+  const label = escapeHtml(name || "");
+  const currentLabel = getUserLabel(state.currentUser);
+  if (!state.equippedTitle || !currentLabel || name !== currentLabel) return label;
+  return `${equippedTitleMarkup()} ${label}`;
+}
+
+function decoratedNameList(names) {
+  return names.map((name) => decorateName(name)).join(", ");
+}
+
+function renderCollectibles() {
+  renderGacha();
+  renderInventory();
+  renderManager();
+  renderAuth();
+}
+
+function renderGacha() {
+  if (!els.gachaMachine) return;
+  const titleMode = state.gachaMode === "title";
+  els.gachaModeButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.gachaMode === state.gachaMode);
+  });
+  els.gachaMachine.classList.toggle("item-machine", !titleMode);
+  els.gachaMachine.classList.toggle("title-machine", titleMode);
+  els.gachaDrawPanelButton.textContent = titleMode ? `${TITLE_DRAW_COST}P로 칭호 뽑기` : "아이템뽑기 공사중";
+  els.gachaDrawPanelButton.disabled = !titleMode || state.gachaBusy;
+  els.gachaDrawButton.disabled = !titleMode || state.gachaBusy;
+  els.rateList.innerHTML = titleMode
+    ? TITLE_RATES.map((item) => `
+        <div class="rate-row">
+          <span class="grade-text grade-${item.grade}">${item.label}</span>
+          <strong>${item.rate}%</strong>
+        </div>
+      `).join("")
+    : `<div class="rate-row"><span>ITEM</span><strong>공사중</strong></div>`;
+  if (!titleMode) {
+    els.gachaResult.innerHTML = `
+      <span>UNDER CONSTRUCTION</span>
+      <strong>아이템뽑기 공사중</strong>
+      <p>아이템 목록이 정해지면 이 통에서 따로 나오게 만들 예정입니다.</p>
+    `;
+  } else if (!els.gachaResult.querySelector(".reward-title")) {
+    els.gachaResult.innerHTML = `
+      <span>READY</span>
+      <strong>칭호 캡슐 대기중</strong>
+      <p>뽑기 버튼을 누르면 캡슐이 나옵니다.</p>
+    `;
+  }
+}
+
+function renderInventory() {
+  if (!els.inventoryList) return;
+  els.inventoryTabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.inventoryTab === state.inventoryTab);
+  });
+
+  if (state.inventoryTab === "item") {
+    const entries = Object.entries(state.items || {});
+    els.inventoryList.innerHTML = entries.length
+      ? entries.map(([name, count]) => `
+          <article class="inventory-card">
+            <strong>${escapeHtml(name)}</strong>
+            <span>${Number(count) || 0}개</span>
+          </article>
+        `).join("")
+      : `<div class="empty inventory-empty">보유한 아이템이 없습니다.</div>`;
+    return;
+  }
+
+  const owned = state.ownedTitles.map(titleById).filter(Boolean);
+  els.inventoryList.innerHTML = owned.length
+    ? owned.map((title) => `
+        <article class="inventory-card title-inventory-card">
+          <div>
+            ${titleMarkup(title)}
+            <small>${title.grade.toUpperCase()}</small>
+          </div>
+          <button class="ghost" type="button" data-equip-title="${escapeHtml(title.id)}">
+            ${state.equippedTitle === title.id ? "장착중" : "장착"}
+          </button>
+        </article>
+      `).join("")
+    : `<div class="empty inventory-empty">보유한 칭호가 없습니다.</div>`;
+}
+
+function pickTitleGrade() {
+  const roll = Math.random() * 100;
+  let cursor = 0;
+  for (const item of TITLE_RATES) {
+    cursor += item.rate;
+    if (roll < cursor) return item.grade;
+  }
+  return "common";
+}
+
+function pickAvailableTitle() {
+  const owned = new Set(state.ownedTitles);
+  const available = TITLE_CATALOG.filter((title) => title.grade !== "special" && !owned.has(title.id));
+  if (!available.length) return null;
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const grade = pickTitleGrade();
+    const pool = available.filter((title) => title.grade === grade);
+    if (pool.length) return pool[Math.floor(Math.random() * pool.length)];
+  }
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+async function drawTitle() {
+  if (state.gachaBusy || state.gachaMode !== "title") return;
+  if (state.points < TITLE_DRAW_COST) {
+    els.gachaResult.innerHTML = `
+      <span>POINT 부족</span>
+      <strong>포인트가 부족합니다</strong>
+      <p>우편함 코드나 보상으로 포인트를 모은 뒤 다시 시도하세요.</p>
+    `;
+    return;
+  }
+
+  const reward = pickAvailableTitle();
+  if (!reward) {
+    els.gachaResult.innerHTML = `
+      <span>COMPLETE</span>
+      <strong>뽑을 수 있는 칭호를 모두 모았습니다</strong>
+      <p>스페셜 칭호는 별도 보상으로만 획득할 수 있습니다.</p>
+    `;
+    return;
+  }
+
+  state.gachaBusy = true;
+  renderGacha();
+  els.gachaMachine.classList.add("is-drawing");
+  els.gachaTray.innerHTML = `<div class="reward-capsule"></div>`;
+  els.gachaResult.innerHTML = `
+    <span>OPENING</span>
+    <strong>캡슐 개봉중...</strong>
+    <p>손잡이가 돌아가고 있습니다.</p>
+  `;
+
+  window.setTimeout(async () => {
+    state.points -= TITLE_DRAW_COST;
+    state.ownedTitles = [...state.ownedTitles, reward.id];
+    await savePointState();
+    state.gachaBusy = false;
+    els.gachaMachine.classList.remove("is-drawing");
+    els.gachaTray.innerHTML = `<div class="reward-capsule opened"></div>`;
+    els.gachaResult.innerHTML = `
+      <span class="grade-text grade-${reward.grade}">${reward.grade.toUpperCase()}</span>
+      <strong class="reward-title">${titleMarkup(reward)} 획득</strong>
+      <p>인벤토리에서 장착할 수 있습니다.</p>
+    `;
+    renderCollectibles();
+  }, 1050);
 }
 
 function getMatchId(match) {
@@ -218,6 +627,25 @@ function closeRenameModal() {
   els.renameModal.setAttribute("aria-hidden", "true");
 }
 
+function openMailbox() {
+  if (!state.currentUser) {
+    openAuth("login");
+    return;
+  }
+  els.userMenu.classList.remove("open");
+  els.mailboxCodeInput.value = "";
+  setMessage(els.mailboxMessage, "");
+  loadMailboxRewards();
+  els.mailboxModal.classList.add("open");
+  els.mailboxModal.setAttribute("aria-hidden", "false");
+  els.mailboxCodeInput.focus();
+}
+
+function closeMailbox() {
+  els.mailboxModal.classList.remove("open");
+  els.mailboxModal.setAttribute("aria-hidden", "true");
+}
+
 function openPatchNotes() {
   els.patchModal.classList.add("open");
   els.patchModal.setAttribute("aria-hidden", "false");
@@ -248,16 +676,51 @@ function getUserLabel(user) {
 
 function setCurrentUser(user) {
   state.currentUser = user || null;
+  loadPointState();
   renderAuth();
   if (supabaseClient) {
     loadRemoteMatches();
   }
 }
 
+async function redeemMailboxCode() {
+  if (!state.currentUser) {
+    closeMailbox();
+    openAuth("login");
+    return;
+  }
+  const code = els.mailboxCodeInput.value.trim().toLowerCase();
+  if (!code) {
+    setMessage(els.mailboxMessage, "코드를 입력하세요.", true);
+    return;
+  }
+  if (!["lemon", "jhs6974"].includes(code)) {
+    setMessage(els.mailboxMessage, "없는 코드입니다.", true);
+    return;
+  }
+  if (state.redeemedCodes.includes(code)) {
+    setMessage(els.mailboxMessage, "이미 사용한 코드입니다.", true);
+    return;
+  }
+
+  els.mailboxCodeButton.disabled = true;
+  if (code === "lemon") {
+    state.points = (Number(state.points) || 0) + 100;
+  }
+  if (code === "jhs6974" && !state.ownedTitles.includes("developer")) {
+    state.ownedTitles = [...state.ownedTitles, "developer"];
+  }
+  state.redeemedCodes = [...state.redeemedCodes, code];
+  await savePointState();
+  els.mailboxCodeInput.value = "";
+  els.mailboxCodeButton.disabled = false;
+  setMessage(els.mailboxMessage, code === "lemon" ? "100P를 받았습니다." : "개발자 칭호를 받았습니다.");
+}
+
 function renderAuth() {
   const label = getUserLabel(state.currentUser);
   if (label) {
-    els.authOpenButton.textContent = label;
+    els.authOpenButton.innerHTML = decorateName(label);
   } else {
     els.authOpenButton.textContent = "로그인";
     els.userMenu.classList.remove("open");
@@ -469,6 +932,7 @@ async function saveRemoteMatch(match) {
     return false;
   }
   state.remoteMatchesReady = true;
+  await createMatchPointMails(match);
   await trimRemoteMatches();
   return true;
 }
@@ -600,7 +1064,7 @@ function renderPlayers() {
     row.className = "player-row";
     row.innerHTML = `
       <div>
-        <strong>${escapeHtml(player.name)}</strong>
+        <strong>${decorateName(player.name)}</strong>
         <div class="player-meta"><span class="tier-badge ${tierClass(player.tier)}">${escapeHtml(player.tier)}</span> · ${escapeHtml(player.lane)}</div>
       </div>
     `;
@@ -613,7 +1077,7 @@ function renderPlayers() {
       row.className = "player-row";
       row.innerHTML = `
         <div>
-          <strong>${escapeHtml(player.name)}</strong>
+          <strong>${decorateName(player.name)}</strong>
           <div class="player-meta"><span class="tier-badge ${tierClass(player.tier)}">${escapeHtml(player.tier)}</span> · ${escapeHtml(player.lane)}</div>
         </div>
         <div class="row-actions">
@@ -716,7 +1180,7 @@ function renderRankings() {
       el.className = "rank-row";
       el.innerHTML = `
         <div>
-          <strong>${index + 1}. ${escapeHtml(row.name)} ${tierBadge}</strong>
+          <strong>${index + 1}. ${decorateName(row.name)} ${tierBadge}</strong>
           <div class="rank-meta">${row.games}전 ${row.win}승 ${row.loss}패 · 승률 ${winRate}%</div>
         </div>
         <span>${row.win}W</span>
@@ -742,8 +1206,8 @@ function renderHistory() {
             <strong class="history-title"><span class="history-team ${winnerClass}">${winner}</span> 승리</strong>
             <div class="history-date">${formatDate(match.createdAt)}</div>
             <div class="history-meta history-teams">
-              <span class="history-team blue">블루팀</span> : ${escapeHtml(match.blue.join(", "))}<br />
-              <span class="history-team red">레드팀</span> : ${escapeHtml(match.red.join(", "))}
+              <span class="history-team blue">블루팀</span> : ${decoratedNameList(match.blue)}<br />
+              <span class="history-team red">레드팀</span> : ${decoratedNameList(match.red)}
             </div>
             <div class="history-memo">메모 : ${escapeHtml(match.memo || "없음")}</div>
           </div>
@@ -759,7 +1223,7 @@ function renderHistory() {
                       ? comments.map((comment) => `
                           <article class="comment-item">
                             <div class="comment-top">
-                              <strong>${escapeHtml(comment.author || "익명")}</strong>
+                              <strong>${decorateName(comment.author || "익명")}</strong>
                               <button class="comment-delete" type="button" data-delete-comment="${index}:${escapeHtml(comment.id)}">삭제</button>
                             </div>
                             <p>${escapeHtml(comment.text || "")}</p>
@@ -800,8 +1264,8 @@ function renderAdminHistory() {
       <div class="admin-history-info">
         <strong><span class="history-team ${winnerClass}">${winner}</span> 승리</strong>
         <span>${formatDate(match.createdAt)}</span>
-        <p><span class="history-team blue">블루팀</span> : ${escapeHtml(match.blue.join(", "))}</p>
-        <p><span class="history-team red">레드팀</span> : ${escapeHtml(match.red.join(", "))}</p>
+        <p><span class="history-team blue">블루팀</span> : ${decoratedNameList(match.blue)}</p>
+        <p><span class="history-team red">레드팀</span> : ${decoratedNameList(match.red)}</p>
         <p>메모 : ${escapeHtml(match.memo || "없음")}</p>
       </div>
       <button class="ghost danger-button" type="button" data-delete-match="${index}">삭제</button>
@@ -866,8 +1330,26 @@ els.authOpenButton.addEventListener("click", () => {
   openAuth("login");
 });
 
+els.mailboxOpenButton.addEventListener("click", openMailbox);
+els.lolpsButton.addEventListener("click", () => {
+  els.userMenu.classList.remove("open");
+  window.open("https://lol.ps/", "_blank", "noopener,noreferrer");
+});
 els.openRenameButton.addEventListener("click", openRenameModal);
 els.logoutButton.addEventListener("click", logout);
+els.mailboxCloseButton.addEventListener("click", closeMailbox);
+els.mailboxCodeButton.addEventListener("click", redeemMailboxCode);
+els.mailboxCodeInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") redeemMailboxCode();
+});
+els.mailboxModal.addEventListener("click", (event) => {
+  if (event.target === els.mailboxModal) closeMailbox();
+});
+els.mailboxList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-claim-mail]");
+  if (!button) return;
+  claimMatchMail(button.dataset.claimMail);
+});
 els.renameCloseButton.addEventListener("click", closeRenameModal);
 els.renameCancelButton.addEventListener("click", closeRenameModal);
 els.renameSaveButton.addEventListener("click", renameUser);
@@ -896,6 +1378,24 @@ els.authModal.addEventListener("click", (event) => {
 });
 
 els.tabs.forEach((tab) => tab.addEventListener("click", () => activateView(tab.dataset.view)));
+els.gachaModeButtons.forEach((button) => button.addEventListener("click", () => {
+  state.gachaMode = button.dataset.gachaMode;
+  renderGacha();
+}));
+els.gachaDrawButton.addEventListener("click", drawTitle);
+els.gachaDrawPanelButton.addEventListener("click", drawTitle);
+els.inventoryTabs.forEach((button) => button.addEventListener("click", () => {
+  state.inventoryTab = button.dataset.inventoryTab;
+  renderInventory();
+}));
+els.inventoryList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-equip-title]");
+  if (!button) return;
+  const titleId = button.dataset.equipTitle;
+  state.equippedTitle = state.equippedTitle === titleId ? "" : titleId;
+  await savePointState();
+  renderCollectibles();
+});
 
 document.querySelectorAll(".tool-view iframe").forEach((frame) => {
   frame.addEventListener("load", applyToolTheme);
@@ -1116,7 +1616,8 @@ els.resetRankingButton.addEventListener("click", () => {
 });
 
 initTheme();
+loadLocalPointState();
 initAuth();
-renderManager();
+renderCollectibles();
 loadRemoteMatches();
 subscribeRemoteMatches();

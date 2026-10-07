@@ -89,6 +89,7 @@ button {
 
 .auth-button,
 .patch-button,
+.point-badge,
 .theme-toggle {
   min-height: 40px;
   max-width: 180px;
@@ -104,6 +105,19 @@ button {
   white-space: nowrap;
 }
 
+.point-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #5a3a04;
+  background: linear-gradient(145deg, #fff7cf, #f5c75c);
+  border-color: rgba(189, 138, 19, 0.46);
+}
+
+.point-badge strong {
+  color: #bd8a13;
+}
+
 body.dark-mode .auth-button,
 body.dark-mode .patch-button,
 body.dark-mode .theme-toggle {
@@ -112,13 +126,23 @@ body.dark-mode .theme-toggle {
   border-color: #111827;
 }
 
+body.dark-mode .point-badge {
+  color: #ffe8a3;
+  background: linear-gradient(145deg, #2a210d, #5f4210);
+  border-color: rgba(245, 199, 92, 0.44);
+}
+
+body.dark-mode .point-badge strong {
+  color: #f5c75c;
+}
+
 .user-menu {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   z-index: 60;
   display: none;
-  width: 138px;
+  width: 166px;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -216,6 +240,12 @@ body.dark-mode .user-menu {
   color: #5c42c6;
 }
 
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .view {
   display: none;
 }
@@ -267,6 +297,52 @@ h2 {
 .command-card strong {
   font-size: 24px;
   line-height: 1.2;
+}
+
+.title-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 1000;
+  line-height: 1.2;
+  vertical-align: 1px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.title-common {
+  background: linear-gradient(135deg, #7b8797, #a5afbf);
+}
+
+.title-uncommon {
+  background: linear-gradient(135deg, #2f9a68, #6ed18f);
+}
+
+.title-rare {
+  background: linear-gradient(135deg, #286fd3, #7db7ff);
+}
+
+.title-epic {
+  background: linear-gradient(135deg, #7b3fd6, #d08cff);
+}
+
+.title-legendary {
+  color: #2d1800;
+  background: linear-gradient(135deg, #ff9f1c, #ffe27a, #ffb000);
+  box-shadow:
+    0 0 14px rgba(255, 184, 28, 0.42),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.48);
+}
+
+.title-special {
+  color: #fff;
+  background: linear-gradient(135deg, #20e3ff, #8b5cf6, #ff4fd8);
+  box-shadow:
+    0 0 18px rgba(139, 92, 246, 0.48),
+    0 0 30px rgba(32, 227, 255, 0.18);
 }
 
 .manager-grid {
@@ -406,7 +482,8 @@ textarea:focus {
 
 .auth-modal,
 .patch-modal,
-.rename-modal {
+.rename-modal,
+.mailbox-modal {
   position: fixed;
   inset: 0;
   z-index: 80;
@@ -419,12 +496,14 @@ textarea:focus {
 
 .auth-modal.open,
 .patch-modal.open,
-.rename-modal.open {
+.rename-modal.open,
+.mailbox-modal.open {
   display: grid;
 }
 
 .auth-card,
-.patch-card {
+.patch-card,
+.mailbox-card {
   position: relative;
   width: min(100%, 420px);
   padding: 24px;
@@ -437,6 +516,128 @@ textarea:focus {
 body.dark-mode .auth-card,
 body.dark-mode .patch-card {
   background: rgba(255, 255, 255, 0.96);
+}
+
+.mailbox-card {
+  width: min(100%, 760px);
+  min-height: min(620px, calc(100vh - 44px));
+  background:
+    radial-gradient(circle at 50% 0%, rgba(245, 199, 92, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(24, 29, 39, 0.98), rgba(17, 23, 33, 0.98));
+  border-color: rgba(245, 199, 92, 0.38);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(245, 199, 92, 0.08);
+}
+
+.mailbox-heading h2 {
+  color: #f8d891;
+  text-shadow: 0 0 22px rgba(245, 199, 92, 0.18);
+}
+
+.mailbox-code-row {
+  position: absolute;
+  top: 16px;
+  right: 78px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mailbox-code-row input {
+  width: 176px;
+  min-height: 36px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.mailbox-code-row button {
+  min-height: 36px;
+  color: #f8d891;
+  background: rgba(5, 8, 14, 0.62);
+  border-color: rgba(245, 199, 92, 0.34);
+}
+
+.mailbox-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  max-height: 430px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.mailbox-empty {
+  display: grid;
+  min-height: 380px;
+  margin: 0;
+  place-items: center;
+  color: #9aa7ba;
+  background: rgba(7, 12, 20, 0.42);
+  border: 1px dashed rgba(226, 232, 240, 0.16);
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.mailbox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 86px;
+  padding: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.14);
+  border-radius: 12px;
+  background: rgba(7, 12, 20, 0.5);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
+}
+
+.mailbox-item div {
+  display: grid;
+  gap: 5px;
+}
+
+.mailbox-item strong {
+  color: #f7f4eb;
+  font-size: 16px;
+  font-weight: 1000;
+}
+
+.mailbox-item small {
+  color: #b8c2d2;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.mailbox-item span {
+  color: #f8d891;
+  font-weight: 1000;
+}
+
+.mail-claim-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  color: #2d1800;
+  background: linear-gradient(135deg, #fff3b5, #f5c75c);
+  font-weight: 1000;
+}
+
+.mailbox-message {
+  min-height: 24px;
+  margin-top: 14px;
+  color: #f8d891;
+}
+
+.mailbox-message.error {
+  color: #ff8c96;
+}
+
+.mailbox-modal .auth-close {
+  color: #f7f4eb;
+  background: rgba(5, 8, 14, 0.62);
+  border-color: rgba(226, 232, 240, 0.22);
 }
 
 .patch-card {
@@ -835,6 +1036,336 @@ body.dark-mode .patch-card {
   padding: 18px;
 }
 
+.gacha-shell,
+.inventory-shell {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+}
+
+.gacha-hero {
+  padding: 22px;
+}
+
+.gacha-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.gacha-head p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.gacha-mode-switch,
+.inventory-tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.gacha-mode-switch button,
+.inventory-tabs button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 1000;
+}
+
+.gacha-mode-switch button.active,
+.inventory-tabs button.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue-strong), #7f69d6);
+}
+
+.gacha-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(310px, 0.75fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.capsule-machine {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  min-height: 600px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.92), transparent 28%),
+    linear-gradient(180deg, #eef6ff, #e7ecf7);
+  overflow: hidden;
+}
+
+body.dark-mode .capsule-machine {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.8), transparent 28%),
+    linear-gradient(180deg, #1b2331, #101722);
+}
+
+.capsule-machine.item-machine {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(219, 245, 255, 0.9), transparent 30%),
+    linear-gradient(180deg, #eef9ff, #edf0fb);
+}
+
+body.dark-mode .capsule-machine.item-machine {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(80, 211, 255, 0.18), transparent 30%),
+    linear-gradient(180deg, #111d27, #101722);
+}
+
+.machine-dome {
+  position: relative;
+  width: min(78vw, 420px);
+  aspect-ratio: 1;
+  border: 8px solid rgba(174, 184, 198, 0.72);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 20%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.28) 24%, transparent 25%),
+    radial-gradient(circle at 50% 78%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08) 48%, transparent 49%),
+    rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 0 30px rgba(255, 255, 255, 0.72),
+    inset 0 -30px 50px rgba(117, 131, 157, 0.18),
+    0 22px 55px rgba(70, 82, 118, 0.2);
+  overflow: hidden;
+}
+
+.machine-rod {
+  position: absolute;
+  top: -8%;
+  left: 50%;
+  width: 6px;
+  height: 112%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #aab4c4, #eef3fb, #8c98aa);
+  transform: translateX(-50%);
+}
+
+.capsule {
+  position: absolute;
+  width: 74px;
+  height: 44px;
+  border: 4px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  box-shadow: 0 10px 20px rgba(30, 40, 60, 0.18);
+}
+
+.capsule::before {
+  content: "";
+  position: absolute;
+  inset: 0 50% 0 0;
+  border-radius: 999px 0 0 999px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.c1 { left: 18%; bottom: 24%; background: #46b37f; transform: rotate(-18deg); }
+.c2 { left: 36%; bottom: 18%; background: #323945; transform: rotate(14deg); }
+.c3 { right: 20%; bottom: 26%; background: #ef8e45; transform: rotate(-28deg); }
+.c4 { right: 34%; bottom: 34%; background: #7f69d6; transform: rotate(22deg); }
+.c5 { left: 28%; bottom: 38%; background: #f1c84b; transform: rotate(30deg); }
+
+.machine-base {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: min(70vw, 330px);
+  min-height: 220px;
+  margin-top: -46px;
+  padding: 40px 22px 20px;
+  border: 1px solid #b6bfcc;
+  border-radius: 24px 24px 18px 18px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.78), transparent 24%, transparent 76%, rgba(0,0,0,0.08)),
+    linear-gradient(180deg, #ffffff, #dfe5ee);
+  box-shadow: 0 22px 45px rgba(70, 82, 118, 0.25);
+}
+
+.machine-slot {
+  width: 120px;
+  height: 18px;
+  margin-bottom: 18px;
+  border-radius: 999px;
+  background: #20263a;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.32);
+}
+
+.machine-handle {
+  width: 108px;
+  height: 108px;
+  border: 8px solid #b7bfca;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, transparent 42%, #707b8d 43% 57%, transparent 58%),
+    radial-gradient(circle, #f8fbff, #c9d1de);
+  box-shadow:
+    inset 0 0 0 8px rgba(255,255,255,0.46),
+    0 12px 22px rgba(39, 48, 68, 0.25);
+}
+
+.capsule-machine.is-drawing .machine-handle {
+  animation: handleSpin 0.9s ease-in-out;
+}
+
+.machine-tray {
+  display: grid;
+  place-items: center;
+  width: 130px;
+  height: 58px;
+  margin-top: 16px;
+  border-radius: 0 0 24px 24px;
+  background: #f8fbff;
+  border: 1px solid #c8d1df;
+  box-shadow: inset 0 5px 12px rgba(70, 82, 118, 0.12);
+}
+
+.reward-capsule {
+  width: 62px;
+  height: 38px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #fff 0 48%, #f4ca64 49% 100%);
+  border: 3px solid rgba(255,255,255,0.92);
+  animation: capsuleDrop 0.6s ease-out;
+}
+
+.reward-capsule.opened {
+  width: 78px;
+  background: linear-gradient(90deg, #fff 0 36%, transparent 37% 63%, #f4ca64 64%);
+}
+
+.gacha-side {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 12px;
+}
+
+.gacha-result,
+.rate-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.gacha-result span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.gacha-result strong {
+  display: block;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.gacha-result p,
+.rate-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+.gacha-draw-button {
+  min-height: 58px;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #bd8a13, #7f69d6);
+  font-size: 18px;
+  font-weight: 1000;
+  box-shadow: var(--shadow);
+}
+
+.gacha-draw-button:disabled,
+.machine-handle:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.rate-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rate-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  font-weight: 1000;
+}
+
+.grade-text {
+  font-weight: 1000;
+}
+
+.grade-common { color: #7b8797; }
+.grade-uncommon { color: #2f9a68; }
+.grade-rare { color: #286fd3; }
+.grade-epic { color: #8b4de3; }
+.grade-legendary { color: #bd8a13; text-shadow: 0 0 12px rgba(245, 199, 92, 0.35); }
+
+.inventory-shell {
+  padding: 20px;
+}
+
+.inventory-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.inventory-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 76px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #ffffff, var(--surface-soft));
+}
+
+.inventory-card small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-weight: 1000;
+}
+
+.inventory-empty {
+  grid-column: 1 / -1;
+}
+
+@keyframes handleSpin {
+  0% { transform: rotate(0deg); }
+  70% { transform: rotate(250deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes capsuleDrop {
+  0% { opacity: 0; transform: translateY(-42px) scale(0.72) rotate(-20deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+
 .rank-tier {
   margin-left: 6px;
   transform: translateY(-1px);
@@ -958,6 +1489,14 @@ body.dark-mode .patch-card {
     grid-template-columns: 1fr;
   }
 
+  .gacha-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .gacha-head {
+    flex-direction: column;
+  }
+
   .inline-form,
   .match-form {
     grid-template-columns: 1fr 1fr;
@@ -996,6 +1535,21 @@ body.dark-mode .patch-card {
 
   .patch-note-layout {
     grid-template-columns: 1fr;
+  }
+
+  .gacha-mode-switch,
+  .inventory-tabs {
+    width: 100%;
+  }
+
+  .gacha-mode-switch button,
+  .inventory-tabs button {
+    flex: 1;
+  }
+
+  .capsule-machine {
+    min-height: 520px;
+    padding: 14px;
   }
 
   .top-controls {

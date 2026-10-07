@@ -59,6 +59,36 @@ create table if not exists public.nazun_tier_comment_reactions (
   primary key (comment_id, user_id)
 );
 
+create table if not exists public.nazun_user_points (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  points integer not null default 0 check (points >= 0),
+  redeemed_codes text[] not null default array[]::text[],
+  owned_titles text[] not null default array[]::text[],
+  equipped_title text not null default '',
+  items jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.nazun_match_point_mails (
+  id text primary key,
+  match_id text not null references public.nazun_matches(id) on delete cascade,
+  player_name text not null,
+  result text not null check (result in ('win', 'loss')),
+  amount integer not null check (amount > 0),
+  claimed_by uuid references auth.users(id) on delete set null,
+  claimed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.nazun_user_points
+add column if not exists owned_titles text[] not null default array[]::text[];
+
+alter table public.nazun_user_points
+add column if not exists equipped_title text not null default '';
+
+alter table public.nazun_user_points
+add column if not exists items jsonb not null default '{}'::jsonb;
+
 create index if not exists nazun_matches_created_at_idx
 on public.nazun_matches(created_at desc);
 
@@ -80,6 +110,9 @@ on public.nazun_tier_post_reactions(post_id);
 create index if not exists nazun_tier_comment_reactions_comment_idx
 on public.nazun_tier_comment_reactions(comment_id);
 
+create index if not exists nazun_match_point_mails_player_claimed_idx
+on public.nazun_match_point_mails(player_name, claimed_at);
+
 alter table public.nazun_matches enable row level security;
 alter table public.nazun_match_comments enable row level security;
 alter table public.nazun_tier_posts enable row level security;
@@ -87,6 +120,8 @@ alter table public.nazun_tier_comments enable row level security;
 alter table public.nazun_match_comment_reactions enable row level security;
 alter table public.nazun_tier_post_reactions enable row level security;
 alter table public.nazun_tier_comment_reactions enable row level security;
+alter table public.nazun_user_points enable row level security;
+alter table public.nazun_match_point_mails enable row level security;
 
 drop policy if exists "nazun matches visible" on public.nazun_matches;
 create policy "nazun matches visible"
@@ -235,6 +270,44 @@ on public.nazun_tier_comment_reactions for delete
 to authenticated
 using (auth.uid() = user_id);
 
+drop policy if exists "nazun user points visible by owner" on public.nazun_user_points;
+create policy "nazun user points visible by owner"
+on public.nazun_user_points for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "nazun user points writable by owner" on public.nazun_user_points;
+create policy "nazun user points writable by owner"
+on public.nazun_user_points for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun user points updatable by owner" on public.nazun_user_points;
+create policy "nazun user points updatable by owner"
+on public.nazun_user_points for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun match point mails visible" on public.nazun_match_point_mails;
+create policy "nazun match point mails visible"
+on public.nazun_match_point_mails for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun match point mails writable by logged in users" on public.nazun_match_point_mails;
+create policy "nazun match point mails writable by logged in users"
+on public.nazun_match_point_mails for insert
+to authenticated
+with check (true);
+
+drop policy if exists "nazun match point mails claimable by logged in users" on public.nazun_match_point_mails;
+create policy "nazun match point mails claimable by logged in users"
+on public.nazun_match_point_mails for update
+to authenticated
+using (claimed_by is null or auth.uid() = claimed_by)
+with check (auth.uid() = claimed_by);
+
 alter table public.nazun_matches replica identity full;
 alter table public.nazun_match_comments replica identity full;
 alter table public.nazun_tier_posts replica identity full;
@@ -242,6 +315,8 @@ alter table public.nazun_tier_comments replica identity full;
 alter table public.nazun_match_comment_reactions replica identity full;
 alter table public.nazun_tier_post_reactions replica identity full;
 alter table public.nazun_tier_comment_reactions replica identity full;
+alter table public.nazun_user_points replica identity full;
+alter table public.nazun_match_point_mails replica identity full;
 
 do $$
 begin
