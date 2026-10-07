@@ -80,6 +80,15 @@ create table if not exists public.nazun_match_point_mails (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.nazun_user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  nickname text not null default '',
+  tier text not null default '아이언',
+  lane text not null default '상관없음',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.nazun_user_points
 add column if not exists owned_titles text[] not null default array[]::text[];
 
@@ -113,6 +122,9 @@ on public.nazun_tier_comment_reactions(comment_id);
 create index if not exists nazun_match_point_mails_player_claimed_idx
 on public.nazun_match_point_mails(player_name, claimed_at);
 
+create index if not exists nazun_user_profiles_nickname_idx
+on public.nazun_user_profiles(nickname);
+
 alter table public.nazun_matches enable row level security;
 alter table public.nazun_match_comments enable row level security;
 alter table public.nazun_tier_posts enable row level security;
@@ -122,6 +134,7 @@ alter table public.nazun_tier_post_reactions enable row level security;
 alter table public.nazun_tier_comment_reactions enable row level security;
 alter table public.nazun_user_points enable row level security;
 alter table public.nazun_match_point_mails enable row level security;
+alter table public.nazun_user_profiles enable row level security;
 
 drop policy if exists "nazun matches visible" on public.nazun_matches;
 create policy "nazun matches visible"
@@ -308,6 +321,25 @@ to authenticated
 using (claimed_by is null or auth.uid() = claimed_by)
 with check (auth.uid() = claimed_by);
 
+drop policy if exists "nazun user profiles visible" on public.nazun_user_profiles;
+create policy "nazun user profiles visible"
+on public.nazun_user_profiles for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun user profiles writable by owner" on public.nazun_user_profiles;
+create policy "nazun user profiles writable by owner"
+on public.nazun_user_profiles for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "nazun user profiles updatable by logged in users" on public.nazun_user_profiles;
+create policy "nazun user profiles updatable by logged in users"
+on public.nazun_user_profiles for update
+to authenticated
+using (true)
+with check (true);
+
 alter table public.nazun_matches replica identity full;
 alter table public.nazun_match_comments replica identity full;
 alter table public.nazun_tier_posts replica identity full;
@@ -317,6 +349,7 @@ alter table public.nazun_tier_post_reactions replica identity full;
 alter table public.nazun_tier_comment_reactions replica identity full;
 alter table public.nazun_user_points replica identity full;
 alter table public.nazun_match_point_mails replica identity full;
+alter table public.nazun_user_profiles replica identity full;
 
 do $$
 begin
@@ -388,5 +421,15 @@ begin
       and tablename = 'nazun_tier_comment_reactions'
   ) then
     alter publication supabase_realtime add table public.nazun_tier_comment_reactions;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'nazun_user_profiles'
+  ) then
+    alter publication supabase_realtime add table public.nazun_user_profiles;
   end if;
 end $$;

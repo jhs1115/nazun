@@ -17,17 +17,16 @@ const els = {
   gachaDrawButton: document.querySelector("#gachaDrawButton"),
   gachaDrawPanelButton: document.querySelector("#gachaDrawPanelButton"),
   gachaTray: document.querySelector("#gachaTray"),
-  gachaResult: document.querySelector("#gachaResult"),
+  capsuleMessage: document.querySelector("#capsuleMessage"),
+  rewardModal: document.querySelector("#rewardModal"),
+  rewardGrade: document.querySelector("#rewardGrade"),
+  rewardTitle: document.querySelector("#rewardTitle"),
+  rewardConfirmButton: document.querySelector("#rewardConfirmButton"),
   rateList: document.querySelector("#rateList"),
   inventoryTabs: document.querySelectorAll("[data-inventory-tab]"),
   inventoryList: document.querySelector("#inventoryList"),
-  playerForm: document.querySelector("#playerForm"),
-  playerNameInput: document.querySelector("#playerNameInput"),
-  playerTierInput: document.querySelector("#playerTierInput"),
-  playerLaneInput: document.querySelector("#playerLaneInput"),
   playerList: document.querySelector("#playerList"),
   adminPlayerList: document.querySelector("#adminPlayerList"),
-  clearPlayersButton: document.querySelector("#clearPlayersButton"),
   inhouseMatchForm: document.querySelector("#inhouseMatchForm"),
   blueTeamSelects: document.querySelectorAll('[data-match-team="blue"]'),
   redTeamSelects: document.querySelectorAll('[data-match-team="red"]'),
@@ -68,6 +67,21 @@ const els = {
   renameNameInput: document.querySelector("#renameNameInput"),
   renamePasswordInput: document.querySelector("#renamePasswordInput"),
   renameMessage: document.querySelector("#renameMessage"),
+  profileModal: document.querySelector("#profileModal"),
+  profileCloseButton: document.querySelector("#profileCloseButton"),
+  profileNameInput: document.querySelector("#profileNameInput"),
+  profileTierInput: document.querySelector("#profileTierInput"),
+  profileLaneInput: document.querySelector("#profileLaneInput"),
+  profileMessage: document.querySelector("#profileMessage"),
+  profileSaveButton: document.querySelector("#profileSaveButton"),
+  playerEditModal: document.querySelector("#playerEditModal"),
+  playerEditCloseButton: document.querySelector("#playerEditCloseButton"),
+  playerEditCancelButton: document.querySelector("#playerEditCancelButton"),
+  editPlayerNameInput: document.querySelector("#editPlayerNameInput"),
+  editPlayerTierInput: document.querySelector("#editPlayerTierInput"),
+  editPlayerLaneInput: document.querySelector("#editPlayerLaneInput"),
+  playerEditMessage: document.querySelector("#playerEditMessage"),
+  playerEditSaveButton: document.querySelector("#playerEditSaveButton"),
   mailboxModal: document.querySelector("#mailboxModal"),
   mailboxCloseButton: document.querySelector("#mailboxCloseButton"),
   mailboxCodeInput: document.querySelector("#mailboxCodeInput"),
@@ -88,6 +102,7 @@ const COMMENT_TABLE = "nazun_match_comments";
 const COMMENT_REACTION_TABLE = "nazun_match_comment_reactions";
 const POINT_TABLE = "nazun_user_points";
 const MAIL_TABLE = "nazun_match_point_mails";
+const PROFILE_TABLE = "nazun_user_profiles";
 const MAX_MATCHES = 10;
 const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
 const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
@@ -129,6 +144,7 @@ const state = {
   matches: readStore(MATCH_STORE_KEY, []),
   currentUser: null,
   editingPlayerIndex: null,
+  editingProfileUserId: "",
   adminUnlocked: false,
   openComments: new Set(),
   points: 0,
@@ -140,8 +156,10 @@ const state = {
   gachaMode: "title",
   inventoryTab: "title",
   gachaBusy: false,
+  pendingRewardTitle: "",
   remoteMatchesReady: false,
   realtimeChannel: null,
+  profileRealtimeChannel: null,
 };
 
 const ADMIN_PASSWORD = "jhs081115jhs";
@@ -265,8 +283,163 @@ async function savePointState() {
     });
 }
 
+function profileToPlayer(row) {
+  return {
+    userId: row.user_id || "",
+    name: row.nickname || row.display_name || "이름 없음",
+    tier: row.tier || "아이언",
+    lane: row.lane || "상관없음",
+  };
+}
+
+async function loadUserProfiles() {
+  if (!supabaseClient) {
+    renderManager();
+    return;
+  }
+  const { data, error } = await supabaseClient
+    .from(PROFILE_TABLE)
+    .select("*")
+    .order("nickname", { ascending: true });
+  if (error) {
+    renderManager();
+    return;
+  }
+  state.players = (data || []).map(profileToPlayer).filter((player) => player.name && player.name !== "이름 없음");
+  savePlayers();
+  renderManager();
+}
+
+function subscribeUserProfiles() {
+  if (!supabaseClient || state.profileRealtimeChannel) return;
+  state.profileRealtimeChannel = supabaseClient
+    .channel("nazun-profile-updates")
+    .on("postgres_changes", { event: "*", schema: "public", table: PROFILE_TABLE }, () => loadUserProfiles())
+    .subscribe();
+}
+
+async function loadMyProfile() {
+  if (!supabaseClient || !state.currentUser?.id) return null;
+  const { data, error } = await supabaseClient
+    .from(PROFILE_TABLE)
+    .select("*")
+    .eq("user_id", state.currentUser.id)
+    .maybeSingle();
+  if (error) return null;
+  return data || null;
+}
+
+function openProfileModal(profile = null, force = false) {
+  if (!state.currentUser) return;
+  els.profileNameInput.value = profile?.nickname || state.currentUser.user_metadata?.lol_name || "";
+  els.profileTierInput.value = profile?.tier || "아이언";
+  els.profileLaneInput.value = profile?.lane || "상관없음";
+  setMessage(els.profileMessage, "");
+  els.profileCloseButton.hidden = force;
+  els.profileModal.classList.add("open");
+  els.profileModal.setAttribute("aria-hidden", "false");
+  els.profileNameInput.focus();
+}
+
+function closeProfileModal() {
+  els.profileModal.classList.remove("open");
+  els.profileModal.setAttribute("aria-hidden", "true");
+}
+
+async function ensureUserProfile() {
+  if (!state.currentUser || !supabaseClient) return;
+  const profile = await loadMyProfile();
+  if (!profile?.nickname) {
+    openProfileModal(profile, true);
+  }
+}
+
+async function saveMyProfile() {
+  if (!state.currentUser || !checkSupabaseReady(els.profileMessage)) return;
+  const nickname = els.profileNameInput.value.trim();
+  if (!nickname) {
+    setMessage(els.profileMessage, "롤 이름 + 태그를 입력하세요.", true);
+    return;
+  }
+
+  els.profileSaveButton.disabled = true;
+  const row = {
+    user_id: state.currentUser.id,
+    nickname,
+    tier: els.profileTierInput.value,
+    lane: els.profileLaneInput.value,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabaseClient.from(PROFILE_TABLE).upsert(row);
+  if (!error) {
+    await supabaseClient.auth.updateUser({
+      data: {
+        display_name: nickname,
+        lol_name: nickname,
+      },
+    });
+    const { data } = await supabaseClient.auth.getUser();
+    state.currentUser = data.user || state.currentUser;
+  }
+  els.profileSaveButton.disabled = false;
+  if (error) {
+    setMessage(els.profileMessage, "프로필 저장에 실패했습니다. Supabase 테이블을 확인하세요.", true);
+    return;
+  }
+  closeProfileModal();
+  renderAuth();
+  await loadUserProfiles();
+  await loadMailboxRewards();
+}
+
+function openPlayerEditModal(index) {
+  const player = state.players[index];
+  if (!player) return;
+  state.editingProfileUserId = player.userId;
+  els.editPlayerNameInput.value = player.name;
+  els.editPlayerTierInput.value = player.tier;
+  els.editPlayerLaneInput.value = player.lane;
+  setMessage(els.playerEditMessage, "");
+  els.playerEditModal.classList.add("open");
+  els.playerEditModal.setAttribute("aria-hidden", "false");
+  els.editPlayerNameInput.focus();
+}
+
+function closePlayerEditModal() {
+  els.playerEditModal.classList.remove("open");
+  els.playerEditModal.setAttribute("aria-hidden", "true");
+  state.editingProfileUserId = "";
+}
+
+async function saveEditedPlayerProfile() {
+  if (!state.editingProfileUserId || !checkSupabaseReady(els.playerEditMessage)) return;
+  const nickname = els.editPlayerNameInput.value.trim();
+  if (!nickname) {
+    setMessage(els.playerEditMessage, "이름을 입력하세요.", true);
+    return;
+  }
+  els.playerEditSaveButton.disabled = true;
+  const { error } = await supabaseClient
+    .from(PROFILE_TABLE)
+    .update({
+      nickname,
+      tier: els.editPlayerTierInput.value,
+      lane: els.editPlayerLaneInput.value,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", state.editingProfileUserId);
+  els.playerEditSaveButton.disabled = false;
+  if (error) {
+    setMessage(els.playerEditMessage, "수정에 실패했습니다. Supabase 권한을 확인하세요.", true);
+    return;
+  }
+  closePlayerEditModal();
+  await loadUserProfiles();
+}
+
 function renderMailbox() {
   if (!els.mailboxList) return;
+  updateMailboxIndicators();
   if (!state.currentUser) {
     els.mailboxList.innerHTML = `<p class="mailbox-empty">로그인 후 우편함을 확인하세요.</p>`;
     return;
@@ -286,6 +459,12 @@ function renderMailbox() {
       <button class="mail-claim-button" type="button" data-claim-mail="${escapeHtml(mail.id)}">받기</button>
     </article>
   `).join("");
+}
+
+function updateMailboxIndicators() {
+  const hasMail = Boolean(state.currentUser && state.mailboxRewards.length);
+  els.authOpenButton.classList.toggle("has-mail", hasMail);
+  els.mailboxOpenButton.classList.toggle("has-mail", hasMail);
 }
 
 async function loadMailboxRewards() {
@@ -369,6 +548,12 @@ function titleMarkup(title) {
   return `<span class="${titleClass(title)}">${escapeHtml(title.name)}</span>`;
 }
 
+function setCapsuleMessage(message) {
+  if (els.capsuleMessage) {
+    els.capsuleMessage.textContent = message;
+  }
+}
+
 function equippedTitleMarkup() {
   return titleMarkup(titleById(state.equippedTitle));
 }
@@ -411,17 +596,9 @@ function renderGacha() {
       `).join("")
     : `<div class="rate-row"><span>ITEM</span><strong>공사중</strong></div>`;
   if (!titleMode) {
-    els.gachaResult.innerHTML = `
-      <span>UNDER CONSTRUCTION</span>
-      <strong>아이템뽑기 공사중</strong>
-      <p>아이템 목록이 정해지면 이 통에서 따로 나오게 만들 예정입니다.</p>
-    `;
-  } else if (!els.gachaResult.querySelector(".reward-title")) {
-    els.gachaResult.innerHTML = `
-      <span>READY</span>
-      <strong>칭호 캡슐 대기중</strong>
-      <p>뽑기 버튼을 누르면 캡슐이 나옵니다.</p>
-    `;
+    setCapsuleMessage("아이템뽑기 공사중");
+  } else if (!state.pendingRewardTitle && !state.gachaBusy) {
+    setCapsuleMessage("손잡이를 돌려 캡슐을 뽑으세요.");
   }
 }
 
@@ -486,48 +663,51 @@ function pickAvailableTitle() {
 async function drawTitle() {
   if (state.gachaBusy || state.gachaMode !== "title") return;
   if (state.points < TITLE_DRAW_COST) {
-    els.gachaResult.innerHTML = `
-      <span>POINT 부족</span>
-      <strong>포인트가 부족합니다</strong>
-      <p>우편함 코드나 보상으로 포인트를 모은 뒤 다시 시도하세요.</p>
-    `;
+    setCapsuleMessage("포인트가 부족합니다.");
     return;
   }
 
   const reward = pickAvailableTitle();
   if (!reward) {
-    els.gachaResult.innerHTML = `
-      <span>COMPLETE</span>
-      <strong>뽑을 수 있는 칭호를 모두 모았습니다</strong>
-      <p>스페셜 칭호는 별도 보상으로만 획득할 수 있습니다.</p>
-    `;
+    setCapsuleMessage("뽑을 수 있는 칭호를 모두 모았습니다.");
     return;
   }
 
   state.gachaBusy = true;
+  state.pendingRewardTitle = "";
   renderGacha();
   els.gachaMachine.classList.add("is-drawing");
   els.gachaTray.innerHTML = `<div class="reward-capsule"></div>`;
-  els.gachaResult.innerHTML = `
-    <span>OPENING</span>
-    <strong>캡슐 개봉중...</strong>
-    <p>손잡이가 돌아가고 있습니다.</p>
-  `;
+  setCapsuleMessage("캡슐이 나오고 있습니다.");
 
   window.setTimeout(async () => {
     state.points -= TITLE_DRAW_COST;
     state.ownedTitles = [...state.ownedTitles, reward.id];
     await savePointState();
     state.gachaBusy = false;
+    state.pendingRewardTitle = reward.id;
     els.gachaMachine.classList.remove("is-drawing");
-    els.gachaTray.innerHTML = `<div class="reward-capsule opened"></div>`;
-    els.gachaResult.innerHTML = `
-      <span class="grade-text grade-${reward.grade}">${reward.grade.toUpperCase()}</span>
-      <strong class="reward-title">${titleMarkup(reward)} 획득</strong>
-      <p>인벤토리에서 장착할 수 있습니다.</p>
-    `;
+    els.gachaTray.innerHTML = `<button class="reward-capsule opened" type="button" data-open-capsule aria-label="캡슐 열기"></button>`;
+    setCapsuleMessage("캡슐을 클릭하세요.");
     renderCollectibles();
   }, 1050);
+}
+
+function openRewardModal(title) {
+  if (!title) return;
+  els.rewardGrade.textContent = title.grade.toUpperCase();
+  els.rewardGrade.className = `reward-grade grade-${title.grade}`;
+  els.rewardTitle.innerHTML = titleMarkup(title);
+  els.rewardModal.classList.add("open");
+  els.rewardModal.setAttribute("aria-hidden", "false");
+}
+
+function closeRewardModal() {
+  els.rewardModal.classList.remove("open");
+  els.rewardModal.setAttribute("aria-hidden", "true");
+  state.pendingRewardTitle = "";
+  els.gachaTray.innerHTML = "";
+  setCapsuleMessage(state.gachaMode === "title" ? "손잡이를 돌려 캡슐을 뽑으세요." : "아이템뽑기 공사중");
 }
 
 function getMatchId(match) {
@@ -671,7 +851,7 @@ function togglePassword(input, button) {
 }
 
 function getUserLabel(user) {
-  return user?.user_metadata?.display_name || user?.email?.split("@")[0] || "";
+  return user?.user_metadata?.lol_name || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "";
 }
 
 function setCurrentUser(user) {
@@ -680,6 +860,8 @@ function setCurrentUser(user) {
   renderAuth();
   if (supabaseClient) {
     loadRemoteMatches();
+    loadUserProfiles();
+    ensureUserProfile();
   }
 }
 
@@ -752,9 +934,6 @@ async function signup() {
     password,
     options: {
       emailRedirectTo: AUTH_REDIRECT_URL,
-      data: {
-        display_name: email.split("@")[0],
-      },
     },
   });
   els.signupButton.disabled = false;
@@ -765,7 +944,7 @@ async function signup() {
   }
 
   if (data.user && !data.session) {
-    setMessage(els.signupMessage, "가입 확인 메일을 보냈습니다. 메일 인증 후 로그인하세요.");
+    setMessage(els.signupMessage, "가입 확인 메일을 보냈습니다. 메일 인증 후 로그인하면 롤 이름 + 태그 설정 창이 나옵니다.");
     return;
   }
 
@@ -773,6 +952,7 @@ async function signup() {
   els.signupUsername.value = "";
   els.signupPassword.value = "";
   closeAuth();
+  openProfileModal(null, true);
 }
 
 async function login() {
@@ -847,8 +1027,17 @@ async function renameUser() {
     return;
   }
 
+  const profile = await loadMyProfile();
+  if (profile) {
+    await supabaseClient
+      .from(PROFILE_TABLE)
+      .update({ nickname: nextName, updated_at: new Date().toISOString() })
+      .eq("user_id", state.currentUser.id);
+  }
+
   setCurrentUser(data.user);
   closeRenameModal();
+  await loadUserProfiles();
 }
 
 async function initAuth() {
@@ -859,6 +1048,8 @@ async function initAuth() {
 
   const { data } = await supabaseClient.auth.getUser();
   setCurrentUser(data.user);
+  loadUserProfiles();
+  subscribeUserProfiles();
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     setCurrentUser(session?.user || null);
   });
@@ -1082,7 +1273,6 @@ function renderPlayers() {
         </div>
         <div class="row-actions">
           <button class="ghost" type="button" data-edit-player="${index}">수정</button>
-          <button class="ghost" type="button" data-remove-player="${index}">삭제</button>
         </div>
       `;
       return row;
@@ -1359,6 +1549,23 @@ els.renamePasswordInput.addEventListener("keydown", (event) => {
 els.renameModal.addEventListener("click", (event) => {
   if (event.target === els.renameModal) closeRenameModal();
 });
+els.profileCloseButton.addEventListener("click", closeProfileModal);
+els.profileSaveButton.addEventListener("click", saveMyProfile);
+els.profileNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") saveMyProfile();
+});
+els.profileModal.addEventListener("click", (event) => {
+  if (event.target === els.profileModal && !els.profileCloseButton.hidden) closeProfileModal();
+});
+els.playerEditCloseButton.addEventListener("click", closePlayerEditModal);
+els.playerEditCancelButton.addEventListener("click", closePlayerEditModal);
+els.playerEditSaveButton.addEventListener("click", saveEditedPlayerProfile);
+els.editPlayerNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") saveEditedPlayerProfile();
+});
+els.playerEditModal.addEventListener("click", (event) => {
+  if (event.target === els.playerEditModal) closePlayerEditModal();
+});
 
 els.authCloseButton.addEventListener("click", closeAuth);
 els.showSignupButton.addEventListener("click", () => showAuthPane("signup"));
@@ -1380,10 +1587,17 @@ els.authModal.addEventListener("click", (event) => {
 els.tabs.forEach((tab) => tab.addEventListener("click", () => activateView(tab.dataset.view)));
 els.gachaModeButtons.forEach((button) => button.addEventListener("click", () => {
   state.gachaMode = button.dataset.gachaMode;
+  state.pendingRewardTitle = "";
+  els.gachaTray.innerHTML = "";
   renderGacha();
 }));
 els.gachaDrawButton.addEventListener("click", drawTitle);
 els.gachaDrawPanelButton.addEventListener("click", drawTitle);
+els.gachaTray.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-open-capsule]")) return;
+  openRewardModal(titleById(state.pendingRewardTitle));
+});
+els.rewardConfirmButton.addEventListener("click", closeRewardModal);
 els.inventoryTabs.forEach((button) => button.addEventListener("click", () => {
   state.inventoryTab = button.dataset.inventoryTab;
   renderInventory();
@@ -1409,42 +1623,11 @@ document.addEventListener("click", (event) => {
   }
 });
 
-els.playerForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const name = els.playerNameInput.value.trim();
-  if (!name) return;
-  const nextPlayer = { name, tier: els.playerTierInput.value, lane: els.playerLaneInput.value };
-  if (state.editingPlayerIndex === null) {
-    state.players.push(nextPlayer);
-  } else {
-    state.players[state.editingPlayerIndex] = nextPlayer;
-    state.editingPlayerIndex = null;
-    els.playerForm.querySelector("button").textContent = "추가";
-  }
-  els.playerNameInput.value = "";
-  savePlayers();
-  renderManager();
-});
-
 els.adminPlayerList.addEventListener("click", (event) => {
   const editButton = event.target.closest("[data-edit-player]");
   if (editButton) {
-    const index = Number(editButton.dataset.editPlayer);
-    const player = state.players[index];
-    state.editingPlayerIndex = index;
-    els.playerNameInput.value = player.name;
-    els.playerTierInput.value = player.tier;
-    els.playerLaneInput.value = player.lane;
-    els.playerForm.querySelector("button").textContent = "수정 완료";
-    return;
+    openPlayerEditModal(Number(editButton.dataset.editPlayer));
   }
-  const button = event.target.closest("[data-remove-player]");
-  if (!button) return;
-  state.players.splice(Number(button.dataset.removePlayer), 1);
-  state.editingPlayerIndex = null;
-  els.playerForm.querySelector("button").textContent = "추가";
-  savePlayers();
-  renderManager();
 });
 
 els.adminHistoryList.addEventListener("click", async (event) => {
@@ -1465,12 +1648,6 @@ els.adminHistoryList.addEventListener("click", async (event) => {
     const deleted = await deleteRemoteMatch(getMatchId(match));
     if (deleted) await loadRemoteMatches();
   }
-});
-
-els.clearPlayersButton.addEventListener("click", () => {
-  state.players = [];
-  savePlayers();
-  renderManager();
 });
 
 els.adminUnlockButton.addEventListener("click", () => {
