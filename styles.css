@@ -114,6 +114,13 @@ button {
   border-color: var(--line);
 }
 
+.auth-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: none;
+}
+
 .point-badge strong {
   color: #bd8a13;
 }
