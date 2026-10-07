@@ -83,18 +83,29 @@
               </div>
               <div class="row-actions">
                 <button class="ghost" id="resetRankingButton" type="button">랭킹 초기화</button>
-                <button class="ghost" id="clearMatchesButton" type="button">경기 기록 삭제</button>
               </div>
             </div>
             <form class="match-form" id="inhouseMatchForm">
-              <label>
+              <div class="match-team-picker">
                 <span class="team-label blue">블루팀</span>
-                <textarea id="blueTeamInput" rows="4" placeholder="한 줄에 한 명씩 입력"></textarea>
-              </label>
-              <label>
+                <div class="line-select-grid">
+                  <label><span>탑</span><select data-match-team="blue" data-match-lane="탑"></select></label>
+                  <label><span>정글</span><select data-match-team="blue" data-match-lane="정글"></select></label>
+                  <label><span>미드</span><select data-match-team="blue" data-match-lane="미드"></select></label>
+                  <label><span>원딜</span><select data-match-team="blue" data-match-lane="원딜"></select></label>
+                  <label><span>서폿</span><select data-match-team="blue" data-match-lane="서폿"></select></label>
+                </div>
+              </div>
+              <div class="match-team-picker">
                 <span class="team-label red">레드팀</span>
-                <textarea id="redTeamInput" rows="4" placeholder="한 줄에 한 명씩 입력"></textarea>
-              </label>
+                <div class="line-select-grid">
+                  <label><span>탑</span><select data-match-team="red" data-match-lane="탑"></select></label>
+                  <label><span>정글</span><select data-match-team="red" data-match-lane="정글"></select></label>
+                  <label><span>미드</span><select data-match-team="red" data-match-lane="미드"></select></label>
+                  <label><span>원딜</span><select data-match-team="red" data-match-lane="원딜"></select></label>
+                  <label><span>서폿</span><select data-match-team="red" data-match-lane="서폿"></select></label>
+                </div>
+              </div>
               <label>
                 <span>승리팀</span>
                 <select id="winnerInput">
@@ -109,6 +120,13 @@
               <p class="auth-message match-message" id="matchFormMessage"></p>
               <button type="submit">결과 저장</button>
             </form>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h2>경기 기록 삭제</h2>
+            </div>
+            <div class="admin-history-list" id="adminHistoryList"></div>
           </article>
 
           <article class="panel">

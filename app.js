@@ -17,15 +17,15 @@ const els = {
   adminPlayerList: document.querySelector("#adminPlayerList"),
   clearPlayersButton: document.querySelector("#clearPlayersButton"),
   inhouseMatchForm: document.querySelector("#inhouseMatchForm"),
-  blueTeamInput: document.querySelector("#blueTeamInput"),
-  redTeamInput: document.querySelector("#redTeamInput"),
+  blueTeamSelects: document.querySelectorAll('[data-match-team="blue"]'),
+  redTeamSelects: document.querySelectorAll('[data-match-team="red"]'),
   winnerInput: document.querySelector("#winnerInput"),
   matchMemoInput: document.querySelector("#matchMemoInput"),
   matchFormMessage: document.querySelector("#matchFormMessage"),
   resetRankingButton: document.querySelector("#resetRankingButton"),
-  clearMatchesButton: document.querySelector("#clearMatchesButton"),
   rankingTable: document.querySelector("#rankingTable"),
   historyList: document.querySelector("#historyList"),
+  adminHistoryList: document.querySelector("#adminHistoryList"),
   authModal: document.querySelector("#authModal"),
   authCloseButton: document.querySelector("#authCloseButton"),
   loginPane: document.querySelector("#loginPane"),
@@ -495,6 +495,16 @@ async function clearRemoteMatches() {
   return true;
 }
 
+async function deleteRemoteMatch(matchId) {
+  if (!supabaseClient) return false;
+  const { error } = await supabaseClient.from(MATCH_TABLE).delete().eq("id", matchId);
+  if (error) {
+    setMessage(els.matchFormMessage, "Supabase 경기 삭제 실패: 권한을 확인하세요.", true);
+    return false;
+  }
+  return true;
+}
+
 async function saveRemoteComment(match, comment) {
   if (!supabaseClient) return false;
   const { error } = await supabaseClient.from(COMMENT_TABLE).insert(commentToRemoteRow(match, comment));
@@ -619,6 +629,42 @@ function renderPlayers() {
     els.playerList.innerHTML = `<div class="empty">참가자를 추가하세요.</div>`;
     els.adminPlayerList.innerHTML = `<div class="empty">참가자를 추가하세요.</div>`;
   }
+
+  renderMatchSelectOptions();
+}
+
+function renderMatchSelectOptions() {
+  const selects = [...els.blueTeamSelects, ...els.redTeamSelects];
+  for (const select of selects) {
+    const currentValue = select.value;
+    const lane = select.dataset.matchLane;
+    const preferredPlayers = state.players
+      .filter((player) => player.lane === lane || player.lane === "상관없음")
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    const otherPlayers = state.players
+      .filter((player) => player.lane !== lane && player.lane !== "상관없음")
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    const options = [
+      `<option value="">선택</option>`,
+      ...preferredPlayers.map((player) => `<option value="${escapeHtml(player.name)}">${escapeHtml(player.name)} · ${escapeHtml(player.tier)}</option>`),
+      ...(preferredPlayers.length && otherPlayers.length ? [`<option disabled>────────</option>`] : []),
+      ...otherPlayers.map((player) => `<option value="${escapeHtml(player.name)}">${escapeHtml(player.name)} · ${escapeHtml(player.tier)}</option>`),
+    ];
+    select.innerHTML = options.join("");
+    if (state.players.some((player) => player.name === currentValue)) {
+      select.value = currentValue;
+    }
+  }
+}
+
+function getSelectedTeam(selects) {
+  return [...selects].map((select) => select.value.trim()).filter(Boolean);
+}
+
+function resetMatchSelects() {
+  [...els.blueTeamSelects, ...els.redTeamSelects].forEach((select) => {
+    select.value = "";
+  });
 }
 
 function tierClass(tier) {
@@ -743,6 +789,31 @@ function renderHistory() {
   }
 }
 
+function renderAdminHistory() {
+  if (!els.adminHistoryList) return;
+  const rows = state.matches.slice(0, MAX_MATCHES).map((match, index) => {
+    const winner = match.winner === "blue" ? "블루팀" : "레드팀";
+    const winnerClass = match.winner === "blue" ? "blue" : "red";
+    const el = document.createElement("div");
+    el.className = "admin-history-row";
+    el.innerHTML = `
+      <div class="admin-history-info">
+        <strong><span class="history-team ${winnerClass}">${winner}</span> 승리</strong>
+        <span>${formatDate(match.createdAt)}</span>
+        <p><span class="history-team blue">블루팀</span> : ${escapeHtml(match.blue.join(", "))}</p>
+        <p><span class="history-team red">레드팀</span> : ${escapeHtml(match.red.join(", "))}</p>
+        <p>메모 : ${escapeHtml(match.memo || "없음")}</p>
+      </div>
+      <button class="ghost danger-button" type="button" data-delete-match="${index}">삭제</button>
+    `;
+    return el;
+  });
+  els.adminHistoryList.replaceChildren(...rows);
+  if (!state.matches.length) {
+    els.adminHistoryList.innerHTML = `<div class="empty">삭제할 경기 기록이 없습니다.</div>`;
+  }
+}
+
 function renderAdmin() {
   els.adminLock.hidden = state.adminUnlocked;
   els.adminContent.hidden = !state.adminUnlocked;
@@ -752,6 +823,7 @@ function renderManager() {
   renderPlayers();
   renderRankings();
   renderHistory();
+  renderAdminHistory();
   renderAdmin();
 }
 
@@ -875,6 +947,26 @@ els.adminPlayerList.addEventListener("click", (event) => {
   renderManager();
 });
 
+els.adminHistoryList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-match]");
+  if (!button) return;
+  const index = Number(button.dataset.deleteMatch);
+  const match = state.matches[index];
+  if (!match) return;
+  const winner = match.winner === "blue" ? "블루팀" : "레드팀";
+  const confirmed = confirm(`${formatDate(match.createdAt)} ${winner} 승리 기록을 삭제할까요?`);
+  if (!confirmed) return;
+
+  state.matches.splice(index, 1);
+  saveMatches();
+  renderManager();
+
+  if (state.remoteMatchesReady) {
+    const deleted = await deleteRemoteMatch(getMatchId(match));
+    if (deleted) await loadRemoteMatches();
+  }
+});
+
 els.clearPlayersButton.addEventListener("click", () => {
   state.players = [];
   savePlayers();
@@ -897,14 +989,14 @@ els.adminPasswordInput.addEventListener("keydown", (event) => {
 
 els.inhouseMatchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const blue = splitNames(els.blueTeamInput.value);
-  const red = splitNames(els.redTeamInput.value);
+  const blue = getSelectedTeam(els.blueTeamSelects);
+  const red = getSelectedTeam(els.redTeamSelects);
   const allNames = [...blue, ...red];
   const duplicateName = findDuplicateName(allNames);
   const missingName = allNames.find((name) => !playerByName(name));
 
-  if (!blue.length || !red.length) {
-    setMessage(els.matchFormMessage, "블루팀과 레드팀을 모두 입력하세요.", true);
+  if (blue.length !== 5 || red.length !== 5) {
+    setMessage(els.matchFormMessage, "블루팀과 레드팀의 라인을 모두 선택하세요.", true);
     return;
   }
   if (duplicateName) {
@@ -927,8 +1019,7 @@ els.inhouseMatchForm.addEventListener("submit", async (event) => {
   };
   state.matches.unshift(nextMatch);
   state.matches = state.matches.slice(0, MAX_MATCHES);
-  els.blueTeamInput.value = "";
-  els.redTeamInput.value = "";
+  resetMatchSelects();
   els.matchMemoInput.value = "";
   setMessage(els.matchFormMessage, "경기 결과를 저장했습니다.");
   saveMatches();
@@ -1018,10 +1109,6 @@ els.historyList.addEventListener("click", async (event) => {
     const deleted = await deleteRemoteComment(commentId);
     if (deleted) await loadRemoteMatches();
   }
-});
-
-els.clearMatchesButton.addEventListener("click", () => {
-  clearMatchRecords("경기 기록을 모두 삭제했습니다.");
 });
 
 els.resetRankingButton.addEventListener("click", () => {
