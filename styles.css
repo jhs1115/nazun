@@ -473,8 +473,8 @@ h2 {
 
 .match-form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .match-form button {
@@ -492,8 +492,10 @@ h2 {
 
 .line-select-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
   gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .line-select-grid label {
@@ -1912,11 +1914,11 @@ button.reward-capsule {
 
   .inline-form,
   .match-form {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .line-select-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
   }
 }
 
@@ -1937,7 +1939,7 @@ button.reward-capsule {
   }
 
   .line-select-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
   }
 
   .tabs {

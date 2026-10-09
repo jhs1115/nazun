@@ -719,17 +719,19 @@ function championEntries(match) {
   ].filter((entry) => entry.name && entry.champion);
 }
 
-function championPlayCount(playerName, championName) {
-  return state.matches.reduce((count, match) => (
-    count + championEntries(match).filter((entry) => entry.name === playerName && entry.champion === championName).length
-  ), 0);
+function championWinCount(playerName, championName) {
+  return state.matches.reduce((count, match) => {
+    const winners = match.winner === "blue" ? match.blue : match.red;
+    if (!winners.includes(playerName)) return count;
+    return count + championEntries(match).filter((entry) => entry.name === playerName && entry.champion === championName).length;
+  }, 0);
 }
 
 async function createChampionTitleMails(match) {
   if (!supabaseClient) return;
   const rows = [];
   for (const entry of championEntries(match)) {
-    if (championPlayCount(entry.name, entry.champion) < 5) continue;
+    if (championWinCount(entry.name, entry.champion) < 5) continue;
     const title = championTitle(entry.champion);
     rows.push({
       id: `${entry.name}-${title.id}`.replace(/[^\w가-힣-]/g, "_"),
