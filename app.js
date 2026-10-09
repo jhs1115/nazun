@@ -188,7 +188,7 @@ const state = {
   mailboxRewards: [],
   titleMails: [],
   inquiries: [],
-  championNames: FALLBACK_CHAMPIONS,
+  championNames: [],
   championUltimates: {},
   prediction: { active: false, locked: false, maxPoints: 0, winner: "", roundId: "" },
   predictionBets: [],
@@ -278,6 +278,9 @@ async function loadChampionData() {
     state.championNames = FALLBACK_CHAMPIONS;
   }
   renderChampionOptions();
+  renderAuth();
+  renderManager();
+  renderCollectibles();
 }
 
 function renderChampionOptions() {
