@@ -579,7 +579,9 @@ textarea:focus {
 .profile-modal,
 .player-edit-modal,
 .mailbox-modal,
-.reward-modal {
+.reward-modal,
+.record-modal,
+.inquiry-modal {
   position: fixed;
   inset: 0;
   z-index: 80;
@@ -596,7 +598,9 @@ textarea:focus {
 .profile-modal.open,
 .player-edit-modal.open,
 .mailbox-modal.open,
-.reward-modal.open {
+.reward-modal.open,
+.record-modal.open,
+.inquiry-modal.open {
   display: grid;
 }
 
@@ -611,6 +615,12 @@ textarea:focus {
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: var(--shadow-hover);
+}
+
+.wide-modal {
+  width: min(100% - 28px, 920px);
+  max-height: min(760px, calc(100vh - 44px));
+  overflow-y: auto;
 }
 
 body.dark-mode .auth-card,
@@ -966,6 +976,10 @@ body.dark-mode .patch-card {
   background: linear-gradient(145deg, #ffffff, var(--surface-soft));
 }
 
+.player-row[data-player-record] {
+  cursor: pointer;
+}
+
 .history-row {
   grid-template-columns: 1fr;
   align-items: stretch;
@@ -1078,6 +1092,120 @@ body.dark-mode .patch-card {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
+}
+
+.match-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.match-detail-grid > div,
+.record-match,
+.inquiry-row,
+.prediction-bet-row {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.7);
+}
+
+.match-detail-grid strong,
+.record-match strong,
+.inquiry-row strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.match-detail-grid p,
+.inquiry-row p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.champion-pill,
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  margin: 2px 4px 2px 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #2a4166;
+  background: #f4f8ff;
+  border: 1px solid #c8d5ed;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.record-summary,
+.stat-chip-row,
+.record-match-list,
+.inquiry-list,
+.prediction-admin-list {
+  display: grid;
+  gap: 8px;
+}
+
+.record-summary {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.record-match-list {
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.prediction-panel {
+  width: min(100%, 640px);
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.prediction-choice-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.prediction-choice-row button,
+.prediction-panel > button,
+.prediction-admin-form button {
+  min-height: 42px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue-strong), #7f69d6);
+  font-weight: 1000;
+}
+
+.prediction-choice-row button.active {
+  box-shadow: 0 0 0 3px rgba(89, 127, 198, 0.25);
+}
+
+.prediction-state,
+.prediction-bet-row {
+  color: var(--text);
+  font-weight: 1000;
+}
+
+.prediction-admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.compact-empty {
+  padding: 14px;
 }
 
 .comment-list {

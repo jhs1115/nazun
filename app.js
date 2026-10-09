@@ -30,7 +30,11 @@ const els = {
   inhouseMatchForm: document.querySelector("#inhouseMatchForm"),
   blueTeamSelects: document.querySelectorAll('[data-match-team="blue"]'),
   redTeamSelects: document.querySelectorAll('[data-match-team="red"]'),
+  championInputs: document.querySelectorAll("[data-champion-team]"),
+  banInputs: document.querySelectorAll("[data-ban-team]"),
+  championOptions: document.querySelector("#championOptions"),
   winnerInput: document.querySelector("#winnerInput"),
+  damageMvpInput: document.querySelector("#damageMvpInput"),
   matchMemoInput: document.querySelector("#matchMemoInput"),
   matchFormMessage: document.querySelector("#matchFormMessage"),
   resetRankingButton: document.querySelector("#resetRankingButton"),
@@ -88,6 +92,30 @@ const els = {
   mailboxCodeButton: document.querySelector("#mailboxCodeButton"),
   mailboxList: document.querySelector("#mailboxList"),
   mailboxMessage: document.querySelector("#mailboxMessage"),
+  recordModal: document.querySelector("#recordModal"),
+  recordCloseButton: document.querySelector("#recordCloseButton"),
+  recordContent: document.querySelector("#recordContent"),
+  inquiryOpenButton: document.querySelector("#inquiryOpenButton"),
+  inquiryModal: document.querySelector("#inquiryModal"),
+  inquiryCloseButton: document.querySelector("#inquiryCloseButton"),
+  inquiryTitleInput: document.querySelector("#inquiryTitleInput"),
+  inquiryBodyInput: document.querySelector("#inquiryBodyInput"),
+  inquirySendButton: document.querySelector("#inquirySendButton"),
+  inquiryMessage: document.querySelector("#inquiryMessage"),
+  adminInquiryList: document.querySelector("#adminInquiryList"),
+  myRecordButton: document.querySelector("#myRecordButton"),
+  predictionStateText: document.querySelector("#predictionStateText"),
+  predictionPointInput: document.querySelector("#predictionPointInput"),
+  predictionBetButton: document.querySelector("#predictionBetButton"),
+  predictionMessage: document.querySelector("#predictionMessage"),
+  predictionTeamButtons: document.querySelectorAll("[data-predict-team]"),
+  predictionMaxInput: document.querySelector("#predictionMaxInput"),
+  predictionStartButton: document.querySelector("#predictionStartButton"),
+  predictionLockButton: document.querySelector("#predictionLockButton"),
+  predictionWinnerInput: document.querySelector("#predictionWinnerInput"),
+  predictionSettleButton: document.querySelector("#predictionSettleButton"),
+  predictionStopButton: document.querySelector("#predictionStopButton"),
+  predictionAdminList: document.querySelector("#predictionAdminList"),
 };
 
 const PLAYER_STORE_KEY = "nazun-players-v2";
@@ -103,6 +131,10 @@ const COMMENT_REACTION_TABLE = "nazun_match_comment_reactions";
 const POINT_TABLE = "nazun_user_points";
 const MAIL_TABLE = "nazun_match_point_mails";
 const PROFILE_TABLE = "nazun_user_profiles";
+const TITLE_MAIL_TABLE = "nazun_title_mails";
+const INQUIRY_TABLE = "nazun_inquiries";
+const PREDICTION_STATE_TABLE = "nazun_prediction_state";
+const PREDICTION_BET_TABLE = "nazun_prediction_bets";
 const MAX_MATCHES = 10;
 const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
 const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
@@ -154,6 +186,13 @@ const state = {
   equippedTitle: "",
   items: {},
   mailboxRewards: [],
+  titleMails: [],
+  inquiries: [],
+  championNames: FALLBACK_CHAMPIONS,
+  championUltimates: {},
+  prediction: { active: false, locked: false, maxPoints: 0, winner: "", roundId: "" },
+  predictionBets: [],
+  selectedPredictionTeam: "blue",
   gachaMode: "title",
   inventoryTab: "title",
   gachaBusy: false,
@@ -162,6 +201,7 @@ const state = {
   remoteMatchesReady: false,
   realtimeChannel: null,
   profileRealtimeChannel: null,
+  utilityRealtimeChannel: null,
 };
 
 const ADMIN_PASSWORD = "jhs081115jhs";
@@ -170,7 +210,9 @@ const POINT_CODES = {
   lemon_2: 100,
   lemon_lemon: 200,
   beta_point: 30,
+  "beta_1.1_update": 10,
 };
+const FALLBACK_CHAMPIONS = ["가렌","갈리오","갱플랭크","그라가스","그레이브즈","그웬","나르","나미","나서스","나피리","노틸러스","녹턴","누누와 윌럼프","니달리","니코","닐라","다리우스","다이애나","드레이븐","라이즈","라칸","람머스","럭스","럼블","레넥톤","레오나","렐","렝가","루시안","룰루","르블랑","리 신","리븐","리산드라","릴리아","마스터 이","마오카이","말자하","말파이트","모르가나","문도 박사","미스 포츈","바루스","바이","베이가","베인","브랜드","블리츠크랭크","비에고","사미라","사이온","사일러스","세나","세트","소라카","쉔","아리","아무무","아칼리","애니","애쉬","야스오","에코","오리아나","요네","이즈리얼","잭스","제드","진","징크스","카르마","카이사","카타리나","케이틀린","케인","케일","크산테","파이크","판테온","피오라","피즈"];
 
 function readStore(key, fallback) {
   try {
@@ -196,6 +238,51 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function safeId(value) {
+  return String(value || "").replace(/[^\w가-힣-]/g, "_");
+}
+
+function championTitleId(champion) {
+  return `champion_${safeId(champion)}`;
+}
+
+function championTitle(champion) {
+  return {
+    id: championTitleId(champion),
+    name: state.championUltimates[champion] || `${champion} 장인`,
+    grade: "special",
+    champion,
+  };
+}
+
+function allTitles() {
+  const map = new Map([...TITLE_CATALOG, ...state.championNames.map(championTitle)].map((title) => [title.id, title]));
+  return [...map.values()];
+}
+
+async function loadChampionData() {
+  try {
+    const versions = await fetch("https://ddragon.leagueoflegends.com/api/versions.json").then((res) => res.json());
+    const data = await fetch(`https://ddragon.leagueoflegends.com/cdn/${versions[0]}/data/ko_KR/champion.json`).then((res) => res.json());
+    const champions = Object.values(data.data || {}).map((champion) => ({
+      name: champion.name,
+      ultimate: champion.spells?.[3]?.name || `${champion.name} 장인`,
+    })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    if (champions.length) {
+      state.championNames = champions.map((champion) => champion.name);
+      state.championUltimates = Object.fromEntries(champions.map((champion) => [champion.name, champion.ultimate]));
+    }
+  } catch {
+    state.championNames = FALLBACK_CHAMPIONS;
+  }
+  renderChampionOptions();
+}
+
+function renderChampionOptions() {
+  if (!els.championOptions) return;
+  els.championOptions.innerHTML = state.championNames.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
 }
 
 function splitNames(value) {
@@ -289,6 +376,10 @@ async function savePointState() {
       items: state.items,
       updated_at: new Date().toISOString(),
     });
+  await supabaseClient
+    .from(PROFILE_TABLE)
+    .update({ equipped_title: state.equippedTitle, updated_at: new Date().toISOString() })
+    .eq("user_id", state.currentUser.id);
 }
 
 function profileToPlayer(row) {
@@ -297,6 +388,7 @@ function profileToPlayer(row) {
     name: row.nickname || row.display_name || "이름 없음",
     tier: row.tier || "아이언",
     lane: row.lane || "상관없음",
+    equippedTitle: row.equipped_title || "",
   };
 }
 
@@ -377,6 +469,7 @@ async function saveMyProfile() {
     nickname,
     tier: els.profileTierInput.value,
     lane: els.profileLaneInput.value,
+    equipped_title: state.equippedTitle || "",
     updated_at: new Date().toISOString(),
   };
   const { error } = await supabaseClient.from(PROFILE_TABLE).upsert(row);
@@ -529,48 +622,67 @@ function renderMailbox() {
     els.mailboxList.innerHTML = `<p class="mailbox-empty">로그인 후 우편함을 확인하세요.</p>`;
     return;
   }
-  if (!state.mailboxRewards.length) {
+  const allMails = [
+    ...state.mailboxRewards.map((mail) => ({ ...mail, type: "point" })),
+    ...state.titleMails.map((mail) => ({ ...mail, type: "title" })),
+  ];
+  if (!allMails.length) {
     els.mailboxList.innerHTML = `<p class="mailbox-empty">우편이 없습니다.</p>`;
     return;
   }
 
-  els.mailboxList.innerHTML = state.mailboxRewards.map((mail) => `
+  els.mailboxList.innerHTML = allMails.map((mail) => `
     <article class="mailbox-item">
       <div>
-        <strong>${mail.result === "win" ? "승리 보상" : "패배 보상"}</strong>
-        <small>${formatDate(mail.createdAt)} 경기 ${mail.result === "win" ? "승리" : "패배"} 기록 보상입니다.</small>
-        <span>${Number(mail.amount) || 0}P</span>
+        <strong>${mail.type === "title" ? "칭호 보상" : mail.result === "win" ? "승리 보상" : "패배 보상"}</strong>
+        <small>${mail.type === "title" ? `${escapeHtml(mail.champion)} 5회 플레이 보상입니다.` : `${formatDate(mail.createdAt)} 경기 ${mail.result === "win" ? "승리" : "패배"} 기록 보상입니다.`}</small>
+        <span>${mail.type === "title" ? escapeHtml(mail.titleName) : `${Number(mail.amount) || 0}P`}</span>
       </div>
-      <button class="mail-claim-button" type="button" data-claim-mail="${escapeHtml(mail.id)}">받기</button>
+      <button class="mail-claim-button" type="button" ${mail.type === "title" ? `data-claim-title-mail="${escapeHtml(mail.id)}"` : `data-claim-mail="${escapeHtml(mail.id)}"`}>받기</button>
     </article>
   `).join("");
 }
 
 function updateMailboxIndicators() {
-  const hasMail = Boolean(state.currentUser && state.mailboxRewards.length);
+  const hasMail = Boolean(state.currentUser && (state.mailboxRewards.length || state.titleMails.length));
   els.authOpenButton.classList.toggle("has-mail", hasMail);
   els.mailboxOpenButton.classList.toggle("has-mail", hasMail);
 }
 
 async function loadMailboxRewards() {
   state.mailboxRewards = [];
+  state.titleMails = [];
   renderMailbox();
   if (!supabaseClient || !state.currentUser) return;
 
   const playerName = getUserLabel(state.currentUser);
   if (!playerName) return;
-  const { data, error } = await supabaseClient
+  const [pointResult, titleResult] = await Promise.all([
+    supabaseClient
     .from(MAIL_TABLE)
     .select("*")
     .eq("player_name", playerName)
     .is("claimed_at", null)
-    .order("created_at", { ascending: false });
-  if (error) return;
+    .order("created_at", { ascending: false }),
+    supabaseClient
+      .from(TITLE_MAIL_TABLE)
+      .select("*")
+      .eq("player_name", playerName)
+      .is("claimed_at", null)
+      .order("created_at", { ascending: false }),
+  ]);
 
-  state.mailboxRewards = (data || []).map((row) => ({
+  if (!pointResult.error) state.mailboxRewards = (pointResult.data || []).map((row) => ({
     id: row.id,
     amount: Number(row.amount) || 0,
     result: row.result === "win" ? "win" : "loss",
+    createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+  }));
+  if (!titleResult.error) state.titleMails = (titleResult.data || []).map((row) => ({
+    id: row.id,
+    titleId: row.title_id,
+    titleName: row.title_name,
+    champion: row.champion,
     createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
   }));
   renderMailbox();
@@ -597,6 +709,40 @@ async function createMatchPointMails(match) {
   await loadMailboxRewards();
 }
 
+function championEntries(match) {
+  return [
+    ...(match.blue || []).map((name, index) => ({ name, champion: match.bluePicks?.[index] || "" })),
+    ...(match.red || []).map((name, index) => ({ name, champion: match.redPicks?.[index] || "" })),
+  ].filter((entry) => entry.name && entry.champion);
+}
+
+function championPlayCount(playerName, championName) {
+  return state.matches.reduce((count, match) => (
+    count + championEntries(match).filter((entry) => entry.name === playerName && entry.champion === championName).length
+  ), 0);
+}
+
+async function createChampionTitleMails(match) {
+  if (!supabaseClient) return;
+  const rows = [];
+  for (const entry of championEntries(match)) {
+    if (championPlayCount(entry.name, entry.champion) < 5) continue;
+    const title = championTitle(entry.champion);
+    rows.push({
+      id: `${entry.name}-${title.id}`.replace(/[^\w가-힣-]/g, "_"),
+      player_name: entry.name,
+      champion: entry.champion,
+      title_id: title.id,
+      title_name: title.name,
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (rows.length) {
+    await supabaseClient.from(TITLE_MAIL_TABLE).upsert(rows, { onConflict: "id" });
+    await loadMailboxRewards();
+  }
+}
+
 async function claimMatchMail(mailId) {
   if (!supabaseClient || !state.currentUser) return;
   const mail = state.mailboxRewards.find((item) => item.id === mailId);
@@ -620,8 +766,32 @@ async function claimMatchMail(mailId) {
   await loadMailboxRewards();
 }
 
+async function claimTitleMail(mailId) {
+  if (!supabaseClient || !state.currentUser) return;
+  const mail = state.titleMails.find((item) => item.id === mailId);
+  if (!mail) return;
+  const { error } = await supabaseClient
+    .from(TITLE_MAIL_TABLE)
+    .update({
+      claimed_by: state.currentUser.id,
+      claimed_at: new Date().toISOString(),
+    })
+    .eq("id", mailId)
+    .is("claimed_at", null);
+  if (error) {
+    setMessage(els.mailboxMessage, "칭호 수령에 실패했습니다.", true);
+    return;
+  }
+  if (!state.ownedTitles.includes(mail.titleId)) {
+    state.ownedTitles = [...state.ownedTitles, mail.titleId];
+  }
+  await savePointState();
+  setMessage(els.mailboxMessage, `${mail.titleName} 칭호를 받았습니다.`);
+  await loadMailboxRewards();
+}
+
 function titleById(id) {
-  return TITLE_CATALOG.find((title) => title.id === id);
+  return allTitles().find((title) => title.id === id);
 }
 
 function titleClass(title) {
@@ -645,6 +815,8 @@ function equippedTitleMarkup() {
 
 function decorateName(name) {
   const label = escapeHtml(name || "");
+  const profile = playerByName(name);
+  if (profile?.equippedTitle) return `${titleMarkup(titleById(profile.equippedTitle))} ${label}`;
   const currentLabel = getUserLabel(state.currentUser);
   if (!state.equippedTitle || !currentLabel || name !== currentLabel) return label;
   return `${equippedTitleMarkup()} ${label}`;
@@ -652,6 +824,26 @@ function decorateName(name) {
 
 function decoratedNameList(names) {
   return names.map((name) => decorateName(name)).join(", ");
+}
+
+function commentAuthorName(comment) {
+  return state.players.find((player) => player.userId && player.userId === comment.userId)?.name || comment.author || "익명";
+}
+
+function teamChampionList(names = [], picks = []) {
+  return names.map((name, index) => `${decorateName(name)} <span class="champion-pill">${escapeHtml(picks[index] || "미입력")}</span>`).join("");
+}
+
+function matchDetailMarkup(match) {
+  return `
+    <div class="match-detail-grid">
+      <div><strong>블루 선택</strong><p>${teamChampionList(match.blue, match.bluePicks)}</p></div>
+      <div><strong>레드 선택</strong><p>${teamChampionList(match.red, match.redPicks)}</p></div>
+      <div><strong>블루 밴</strong><p>${(match.blueBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
+      <div><strong>레드 밴</strong><p>${(match.redBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
+      <div><strong>딜량 1등</strong><p>${match.damageMvp ? decorateName(match.damageMvp) : "없음"}</p></div>
+    </div>
+  `;
 }
 
 function renderCollectibles() {
@@ -807,6 +999,11 @@ function normalizeRemoteMatch(row, commentsByMatch) {
     id: row.id,
     blue: Array.isArray(row.blue) ? row.blue : [],
     red: Array.isArray(row.red) ? row.red : [],
+    bluePicks: Array.isArray(row.blue_picks) ? row.blue_picks : [],
+    redPicks: Array.isArray(row.red_picks) ? row.red_picks : [],
+    blueBans: Array.isArray(row.blue_bans) ? row.blue_bans : [],
+    redBans: Array.isArray(row.red_bans) ? row.red_bans : [],
+    damageMvp: row.damage_mvp || "",
     winner: row.winner === "red" ? "red" : "blue",
     memo: row.memo || "",
     createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
@@ -819,6 +1016,11 @@ function matchToRemoteRow(match) {
     id: getMatchId(match),
     blue: match.blue,
     red: match.red,
+    blue_picks: match.bluePicks || [],
+    red_picks: match.redPicks || [],
+    blue_bans: match.blueBans || [],
+    red_bans: match.redBans || [],
+    damage_mvp: match.damageMvp || "",
     winner: match.winner,
     memo: match.memo || "",
     created_at: new Date(match.createdAt || Date.now()).toISOString(),
@@ -948,6 +1150,7 @@ function setCurrentUser(user) {
   if (supabaseClient) {
     loadRemoteMatches();
     loadUserProfiles();
+    loadPrediction();
     ensureUserProfile();
   }
 }
@@ -1136,10 +1339,23 @@ async function initAuth() {
   const { data } = await supabaseClient.auth.getUser();
   setCurrentUser(data.user);
   loadUserProfiles();
+  loadInquiries();
+  loadPrediction();
   subscribeUserProfiles();
+  subscribeUtilities();
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     setCurrentUser(session?.user || null);
   });
+}
+
+function subscribeUtilities() {
+  if (!supabaseClient || state.utilityRealtimeChannel) return;
+  state.utilityRealtimeChannel = supabaseClient
+    .channel("nazun-utility-updates")
+    .on("postgres_changes", { event: "*", schema: "public", table: INQUIRY_TABLE }, () => loadInquiries())
+    .on("postgres_changes", { event: "*", schema: "public", table: PREDICTION_STATE_TABLE }, () => loadPrediction())
+    .on("postgres_changes", { event: "*", schema: "public", table: PREDICTION_BET_TABLE }, () => loadPrediction())
+    .subscribe();
 }
 
 async function loadRemoteMatches(showMessage = false) {
@@ -1211,6 +1427,7 @@ async function saveRemoteMatch(match) {
   }
   state.remoteMatchesReady = true;
   await createMatchPointMails(match);
+  await createChampionTitleMails(match);
   await trimRemoteMatches();
   return true;
 }
@@ -1340,6 +1557,7 @@ function renderPlayers() {
   const publicRows = state.players.map((player) => {
     const row = document.createElement("div");
     row.className = "player-row";
+    row.dataset.playerRecord = player.name;
     row.innerHTML = `
       <div>
         <strong>${decorateName(player.name)}</strong>
@@ -1397,16 +1615,41 @@ function renderMatchSelectOptions() {
       select.value = currentValue;
     }
   }
+  if (els.damageMvpInput) {
+    const currentValue = els.damageMvpInput.value;
+    els.damageMvpInput.innerHTML = [
+      `<option value="">선택</option>`,
+      ...state.players.map((player) => `<option value="${escapeHtml(player.name)}">${escapeHtml(player.name)}</option>`),
+    ].join("");
+    if (state.players.some((player) => player.name === currentValue)) els.damageMvpInput.value = currentValue;
+  }
 }
 
 function getSelectedTeam(selects) {
   return [...selects].map((select) => select.value.trim()).filter(Boolean);
 }
 
+function getChampionPicks(team) {
+  return [...els.championInputs]
+    .filter((input) => input.dataset.championTeam === team)
+    .map((input) => input.value.trim());
+}
+
+function getBans(team) {
+  return [...els.banInputs]
+    .filter((input) => input.dataset.banTeam === team)
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+}
+
 function resetMatchSelects() {
   [...els.blueTeamSelects, ...els.redTeamSelects].forEach((select) => {
     select.value = "";
   });
+  [...els.championInputs, ...els.banInputs].forEach((input) => {
+    input.value = "";
+  });
+  if (els.damageMvpInput) els.damageMvpInput.value = "";
 }
 
 function tierClass(tier) {
@@ -1490,19 +1733,20 @@ function renderHistory() {
             </div>
             <div class="history-memo">메모 : ${escapeHtml(match.memo || "없음")}</div>
           </div>
-          <button class="ghost comment-toggle" type="button" data-toggle-comments="${index}">${isOpen ? "접기" : `댓글 ${comments.length}`}</button>
+          <button class="ghost comment-toggle" type="button" data-toggle-comments="${index}">${isOpen ? `접기 · 댓글 ${comments.length}` : `펼치기 · 댓글 ${comments.length}`}</button>
         </div>
         ${
           isOpen
             ? `
               <div class="comments-panel">
+                ${matchDetailMarkup(match)}
                 <div class="comment-list">
                   ${
                     comments.length
                       ? comments.map((comment) => `
                           <article class="comment-item">
                             <div class="comment-top">
-                              <strong>${decorateName(comment.author || "익명")}</strong>
+                              <strong>${decorateName(commentAuthorName(comment))}</strong>
                               <button class="comment-delete" type="button" data-delete-comment="${index}:${escapeHtml(comment.id)}">삭제</button>
                             </div>
                             <p>${escapeHtml(comment.text || "")}</p>
@@ -1557,9 +1801,231 @@ function renderAdminHistory() {
   }
 }
 
+function recordMarkup(playerName) {
+  const matches = state.matches.filter((match) => [...(match.blue || []), ...(match.red || [])].includes(playerName));
+  const counts = new Map();
+  for (const match of matches) {
+    for (const entry of championEntries(match)) {
+      if (entry.name === playerName) counts.set(entry.champion, (counts.get(entry.champion) || 0) + 1);
+    }
+  }
+  const champRows = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"))
+    .map(([champion, count]) => `<div class="stat-chip">${escapeHtml(champion)} ${count}</div>`)
+    .join("") || `<div class="empty compact-empty">기록 없음</div>`;
+  const matchRows = matches.map((match) => `
+    <article class="record-match">
+      <strong>${match.winner === "blue" ? "블루팀" : "레드팀"} 승리</strong>
+      <span>${formatDate(match.createdAt)}</span>
+      ${matchDetailMarkup(match)}
+    </article>
+  `).join("") || `<div class="empty compact-empty">기록 없음</div>`;
+  return `<div class="record-summary"><strong>${decorateName(playerName)}</strong><span>${matches.length}전</span></div><div class="stat-chip-row">${champRows}</div><div class="record-match-list">${matchRows}</div>`;
+}
+
+function openRecord(playerName = getUserLabel(state.currentUser)) {
+  if (!playerName) {
+    openAuth("login");
+    return;
+  }
+  els.userMenu.classList.remove("open");
+  els.recordContent.innerHTML = recordMarkup(playerName);
+  els.recordModal.classList.add("open");
+  els.recordModal.setAttribute("aria-hidden", "false");
+}
+
+function closeRecord() {
+  els.recordModal.classList.remove("open");
+  els.recordModal.setAttribute("aria-hidden", "true");
+}
+
+function openInquiry() {
+  if (!state.currentUser) {
+    openAuth("login");
+    return;
+  }
+  els.userMenu.classList.remove("open");
+  els.inquiryTitleInput.value = "";
+  els.inquiryBodyInput.value = "";
+  setMessage(els.inquiryMessage, "");
+  els.inquiryModal.classList.add("open");
+  els.inquiryModal.setAttribute("aria-hidden", "false");
+}
+
+function closeInquiry() {
+  els.inquiryModal.classList.remove("open");
+  els.inquiryModal.setAttribute("aria-hidden", "true");
+}
+
+async function sendInquiry() {
+  if (!state.currentUser || !checkSupabaseReady(els.inquiryMessage)) return;
+  const title = els.inquiryTitleInput.value.trim();
+  const body = els.inquiryBodyInput.value.trim();
+  if (!title || !body) {
+    setMessage(els.inquiryMessage, "제목과 내용을 입력하세요.", true);
+    return;
+  }
+  const row = {
+    id: `inquiry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    user_id: state.currentUser.id,
+    author: getUserLabel(state.currentUser),
+    title,
+    body,
+    created_at: new Date().toISOString(),
+  };
+  const { error } = await supabaseClient.from(INQUIRY_TABLE).insert(row);
+  if (error) {
+    setMessage(els.inquiryMessage, "전송 실패", true);
+    return;
+  }
+  closeInquiry();
+  await loadInquiries();
+}
+
+async function loadInquiries() {
+  state.inquiries = [];
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient.from(INQUIRY_TABLE).select("*").order("created_at", { ascending: false });
+  if (!error) state.inquiries = data || [];
+  renderAdminInquiries();
+}
+
+function renderAdminInquiries() {
+  if (!els.adminInquiryList) return;
+  els.adminInquiryList.innerHTML = state.inquiries.length
+    ? state.inquiries.map((item) => `
+      <article class="inquiry-row">
+        <div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.author || "익명")} · ${formatDate(item.created_at)}</span><p>${escapeHtml(item.body)}</p></div>
+        <button class="ghost danger-button" type="button" data-delete-inquiry="${escapeHtml(item.id)}">삭제</button>
+      </article>
+    `).join("")
+    : `<div class="empty">문의사항이 없습니다.</div>`;
+}
+
+function myPredictionBet() {
+  return state.predictionBets.find((bet) => state.currentUser?.id && bet.user_id === state.currentUser.id);
+}
+
+async function loadPrediction() {
+  if (!supabaseClient) return;
+  const [stateResult, betResult] = await Promise.all([
+    supabaseClient.from(PREDICTION_STATE_TABLE).select("*").eq("id", "current").maybeSingle(),
+    supabaseClient.from(PREDICTION_BET_TABLE).select("*"),
+  ]);
+  if (!stateResult.error && stateResult.data) {
+    state.prediction = {
+      active: Boolean(stateResult.data.active),
+      locked: Boolean(stateResult.data.locked),
+      maxPoints: Number(stateResult.data.max_points) || 0,
+      winner: stateResult.data.winner || "",
+      roundId: stateResult.data.round_id || "",
+    };
+  }
+  if (!betResult.error) state.predictionBets = betResult.data || [];
+  await settleMyPredictionIfNeeded();
+  renderPrediction();
+}
+
+function renderPrediction() {
+  if (!els.predictionStateText) return;
+  const bet = myPredictionBet();
+  const active = state.prediction.active && !state.prediction.locked && !state.prediction.winner;
+  els.predictionStateText.textContent = state.prediction.active
+    ? state.prediction.locked ? "게임중" : state.prediction.winner ? "결과 적용됨" : `진행중 · 최대 ${state.prediction.maxPoints}P`
+    : "진행중인 예측 없음";
+  els.predictionTeamButtons.forEach((button) => button.classList.toggle("active", button.dataset.predictTeam === state.selectedPredictionTeam));
+  els.predictionBetButton.disabled = !active || Boolean(bet);
+  if (els.predictionAdminList) {
+    els.predictionAdminList.innerHTML = state.predictionBets.length
+      ? state.predictionBets.map((item) => `<div class="prediction-bet-row"><span>${escapeHtml(item.author || "익명")}</span><strong>${item.team === "blue" ? "블루" : "레드"} · ${Number(item.amount) || 0}P</strong></div>`).join("")
+      : `<div class="empty compact-empty">예측 없음</div>`;
+  }
+}
+
+async function startPrediction() {
+  if (!checkSupabaseReady(els.adminMessage)) return;
+  const maxPoints = Math.max(1, Number(els.predictionMaxInput.value) || 0);
+  const roundId = `prediction-${Date.now()}`;
+  await supabaseClient.from(PREDICTION_BET_TABLE).delete().not("id", "is", null);
+  await supabaseClient.from(PREDICTION_STATE_TABLE).upsert({
+    id: "current",
+    active: true,
+    locked: false,
+    max_points: maxPoints,
+    winner: "",
+    round_id: roundId,
+    updated_at: new Date().toISOString(),
+  });
+  localStorage.removeItem(`nazun-prediction-settled:${roundId}:${state.currentUser?.id}`);
+  await loadPrediction();
+}
+
+async function lockPrediction() {
+  if (!checkSupabaseReady(els.adminMessage)) return;
+  await supabaseClient.from(PREDICTION_STATE_TABLE).update({ locked: true, updated_at: new Date().toISOString() }).eq("id", "current");
+  await loadPrediction();
+}
+
+async function stopPrediction() {
+  if (!checkSupabaseReady(els.adminMessage)) return;
+  await supabaseClient.from(PREDICTION_STATE_TABLE).update({ active: false, locked: true, winner: "", updated_at: new Date().toISOString() }).eq("id", "current");
+  await loadPrediction();
+}
+
+async function settlePrediction() {
+  if (!checkSupabaseReady(els.adminMessage)) return;
+  await supabaseClient.from(PREDICTION_STATE_TABLE).update({
+    active: true,
+    locked: true,
+    winner: els.predictionWinnerInput.value,
+    updated_at: new Date().toISOString(),
+  }).eq("id", "current");
+  await loadPrediction();
+}
+
+async function placePredictionBet() {
+  if (!state.currentUser) {
+    openAuth("login");
+    return;
+  }
+  if (!state.prediction.active || state.prediction.locked || state.prediction.winner || myPredictionBet()) return;
+  const amount = Math.floor(Number(els.predictionPointInput.value) || 0);
+  if (amount <= 0 || amount > state.points || amount > state.prediction.maxPoints) {
+    setMessage(els.predictionMessage, "포인트를 확인하세요.", true);
+    return;
+  }
+  state.points -= amount;
+  await savePointState();
+  await supabaseClient.from(PREDICTION_BET_TABLE).insert({
+    id: `${state.prediction.roundId}-${state.currentUser.id}`,
+    round_id: state.prediction.roundId,
+    user_id: state.currentUser.id,
+    author: getUserLabel(state.currentUser),
+    team: state.selectedPredictionTeam,
+    amount,
+    created_at: new Date().toISOString(),
+  });
+  setMessage(els.predictionMessage, "예측 완료");
+  await loadPrediction();
+}
+
+async function settleMyPredictionIfNeeded() {
+  if (!state.currentUser || !state.prediction.winner || !state.prediction.roundId) return;
+  const key = `nazun-prediction-settled:${state.prediction.roundId}:${state.currentUser.id}`;
+  if (localStorage.getItem(key)) return;
+  const bet = myPredictionBet();
+  if (!bet) return;
+  const amount = Number(bet.amount) || 0;
+  state.points += bet.team === state.prediction.winner ? Math.floor(amount * 1.5) : Math.floor(amount * 0.5);
+  localStorage.setItem(key, "1");
+  await savePointState();
+}
+
 function renderAdmin() {
   els.adminLock.hidden = state.adminUnlocked;
   els.adminContent.hidden = !state.adminUnlocked;
+  renderAdminInquiries();
+  renderPrediction();
 }
 
 function renderManager() {
@@ -1568,6 +2034,7 @@ function renderManager() {
   renderHistory();
   renderAdminHistory();
   renderAdmin();
+  renderPrediction();
 }
 
 function savePlayers() {
@@ -1600,6 +2067,14 @@ els.patchCloseButton.addEventListener("click", closePatchNotes);
 els.patchModal.addEventListener("click", (event) => {
   if (event.target === els.patchModal) closePatchNotes();
 });
+document.querySelectorAll(".patch-version-button").forEach((button, index) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".patch-version-button").forEach((item) => item.classList.toggle("is-active", item === button));
+    document.querySelectorAll(".patch-version-content ul").forEach((item, itemIndex) => {
+      item.hidden = itemIndex !== index;
+    });
+  });
+});
 
 els.authOpenButton.addEventListener("click", () => {
   if (state.currentUser) {
@@ -1614,6 +2089,8 @@ els.lolpsButton.addEventListener("click", () => {
   els.userMenu.classList.remove("open");
   window.open("https://lol.ps/", "_blank", "noopener,noreferrer");
 });
+els.myRecordButton.addEventListener("click", () => openRecord());
+els.inquiryOpenButton.addEventListener("click", openInquiry);
 els.openRenameButton.addEventListener("click", openRenameModal);
 els.logoutButton.addEventListener("click", logout);
 els.mailboxCloseButton.addEventListener("click", closeMailbox);
@@ -1626,8 +2103,22 @@ els.mailboxModal.addEventListener("click", (event) => {
 });
 els.mailboxList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-claim-mail]");
-  if (!button) return;
-  claimMatchMail(button.dataset.claimMail);
+  if (button) {
+    claimMatchMail(button.dataset.claimMail);
+    return;
+  }
+  const titleButton = event.target.closest("[data-claim-title-mail]");
+  if (!titleButton) return;
+  claimTitleMail(titleButton.dataset.claimTitleMail);
+});
+els.recordCloseButton.addEventListener("click", closeRecord);
+els.recordModal.addEventListener("click", (event) => {
+  if (event.target === els.recordModal) closeRecord();
+});
+els.inquiryCloseButton.addEventListener("click", closeInquiry);
+els.inquirySendButton.addEventListener("click", sendInquiry);
+els.inquiryModal.addEventListener("click", (event) => {
+  if (event.target === els.inquiryModal) closeInquiry();
 });
 els.renameCloseButton.addEventListener("click", closeRenameModal);
 els.renameCancelButton.addEventListener("click", closeRenameModal);
@@ -1674,6 +2165,26 @@ els.authModal.addEventListener("click", (event) => {
 });
 
 els.tabs.forEach((tab) => tab.addEventListener("click", () => activateView(tab.dataset.view)));
+els.playerList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-player-record]");
+  if (!row) return;
+  openRecord(row.dataset.playerRecord);
+});
+els.adminInquiryList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-inquiry]");
+  if (!button || !supabaseClient) return;
+  await supabaseClient.from(INQUIRY_TABLE).delete().eq("id", button.dataset.deleteInquiry);
+  await loadInquiries();
+});
+els.predictionTeamButtons.forEach((button) => button.addEventListener("click", () => {
+  state.selectedPredictionTeam = button.dataset.predictTeam;
+  renderPrediction();
+}));
+els.predictionBetButton.addEventListener("click", placePredictionBet);
+els.predictionStartButton.addEventListener("click", startPrediction);
+els.predictionLockButton.addEventListener("click", lockPrediction);
+els.predictionSettleButton.addEventListener("click", settlePrediction);
+els.predictionStopButton.addEventListener("click", stopPrediction);
 els.gachaModeButtons.forEach((button) => button.addEventListener("click", () => {
   state.gachaMode = button.dataset.gachaMode;
   state.pendingRewardTitle = "";
@@ -1761,9 +2272,15 @@ els.inhouseMatchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const blue = getSelectedTeam(els.blueTeamSelects);
   const red = getSelectedTeam(els.redTeamSelects);
+  const bluePicks = getChampionPicks("blue");
+  const redPicks = getChampionPicks("red");
+  const blueBans = getBans("blue");
+  const redBans = getBans("red");
   const allNames = [...blue, ...red];
+  const allPicks = [...bluePicks, ...redPicks];
   const duplicateName = findDuplicateName(allNames);
   const missingName = allNames.find((name) => !playerByName(name));
+  const badChampion = [...allPicks, ...blueBans, ...redBans].filter(Boolean).find((name) => !state.championNames.includes(name));
 
   if (blue.length !== 5 || red.length !== 5) {
     setMessage(els.matchFormMessage, "블루팀과 레드팀의 라인을 모두 선택하세요.", true);
@@ -1777,11 +2294,24 @@ els.inhouseMatchForm.addEventListener("submit", async (event) => {
     setMessage(els.matchFormMessage, `${missingName}은 멤버 명단에 없습니다.`, true);
     return;
   }
+  if (bluePicks.filter(Boolean).length !== 5 || redPicks.filter(Boolean).length !== 5) {
+    setMessage(els.matchFormMessage, "사용한 챔피언을 모두 선택하세요.", true);
+    return;
+  }
+  if (badChampion) {
+    setMessage(els.matchFormMessage, `${badChampion} 챔피언 이름을 확인하세요.`, true);
+    return;
+  }
 
   const nextMatch = {
     id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     blue,
     red,
+    bluePicks,
+    redPicks,
+    blueBans,
+    redBans,
+    damageMvp: els.damageMvpInput.value,
     winner: els.winnerInput.value,
     memo: els.matchMemoInput.value.trim(),
     createdAt: Date.now(),
@@ -1899,6 +2429,8 @@ els.resetRankingButton.addEventListener("click", () => {
 });
 
 initTheme();
+loadChampionData();
+renderChampionOptions();
 loadLocalPointState();
 initAuth();
 renderCollectibles();

@@ -2,6 +2,11 @@ create table if not exists public.nazun_matches (
   id text primary key,
   blue text[] not null default '{}',
   red text[] not null default '{}',
+  blue_picks text[] not null default '{}',
+  red_picks text[] not null default '{}',
+  blue_bans text[] not null default '{}',
+  red_bans text[] not null default '{}',
+  damage_mvp text not null default '',
   winner text not null check (winner in ('blue', 'red')),
   memo text not null default '',
   created_at timestamptz not null default now()
@@ -85,9 +90,57 @@ create table if not exists public.nazun_user_profiles (
   nickname text not null default '',
   tier text not null default '아이언',
   lane text not null default '상관없음',
+  equipped_title text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.nazun_title_mails (
+  id text primary key,
+  player_name text not null,
+  champion text not null,
+  title_id text not null,
+  title_name text not null,
+  claimed_by uuid references auth.users(id) on delete set null,
+  claimed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.nazun_inquiries (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete set null,
+  author text not null default '익명',
+  title text not null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.nazun_prediction_state (
+  id text primary key default 'current',
+  active boolean not null default false,
+  locked boolean not null default false,
+  max_points integer not null default 0,
+  winner text not null default '',
+  round_id text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.nazun_prediction_bets (
+  id text primary key,
+  round_id text not null,
+  user_id uuid references auth.users(id) on delete cascade,
+  author text not null default '익명',
+  team text not null check (team in ('blue', 'red')),
+  amount integer not null check (amount > 0),
+  created_at timestamptz not null default now()
+);
+
+alter table public.nazun_matches add column if not exists blue_picks text[] not null default '{}';
+alter table public.nazun_matches add column if not exists red_picks text[] not null default '{}';
+alter table public.nazun_matches add column if not exists blue_bans text[] not null default '{}';
+alter table public.nazun_matches add column if not exists red_bans text[] not null default '{}';
+alter table public.nazun_matches add column if not exists damage_mvp text not null default '';
+alter table public.nazun_user_profiles add column if not exists equipped_title text not null default '';
 
 alter table public.nazun_user_points
 add column if not exists owned_titles text[] not null default array[]::text[];
@@ -135,6 +188,10 @@ alter table public.nazun_tier_comment_reactions enable row level security;
 alter table public.nazun_user_points enable row level security;
 alter table public.nazun_match_point_mails enable row level security;
 alter table public.nazun_user_profiles enable row level security;
+alter table public.nazun_title_mails enable row level security;
+alter table public.nazun_inquiries enable row level security;
+alter table public.nazun_prediction_state enable row level security;
+alter table public.nazun_prediction_bets enable row level security;
 
 drop policy if exists "nazun matches visible" on public.nazun_matches;
 create policy "nazun matches visible"
@@ -146,6 +203,13 @@ drop policy if exists "nazun matches writable by logged in users" on public.nazu
 create policy "nazun matches writable by logged in users"
 on public.nazun_matches for insert
 to authenticated
+with check (true);
+
+drop policy if exists "nazun matches updatable by logged in users" on public.nazun_matches;
+create policy "nazun matches updatable by logged in users"
+on public.nazun_matches for update
+to authenticated
+using (true)
 with check (true);
 
 drop policy if exists "nazun matches deletable by logged in users" on public.nazun_matches;
@@ -346,6 +410,69 @@ on public.nazun_user_profiles for delete
 to authenticated
 using (true);
 
+drop policy if exists "nazun title mails visible" on public.nazun_title_mails;
+create policy "nazun title mails visible"
+on public.nazun_title_mails for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun title mails writable by logged in users" on public.nazun_title_mails;
+create policy "nazun title mails writable by logged in users"
+on public.nazun_title_mails for insert
+to authenticated
+with check (true);
+
+drop policy if exists "nazun title mails claimable by logged in users" on public.nazun_title_mails;
+create policy "nazun title mails claimable by logged in users"
+on public.nazun_title_mails for update
+to authenticated
+using (claimed_by is null or auth.uid() = claimed_by)
+with check (auth.uid() = claimed_by);
+
+drop policy if exists "nazun inquiries visible" on public.nazun_inquiries;
+create policy "nazun inquiries visible"
+on public.nazun_inquiries for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun inquiries writable by logged in users" on public.nazun_inquiries;
+create policy "nazun inquiries writable by logged in users"
+on public.nazun_inquiries for insert
+to authenticated
+with check (true);
+
+drop policy if exists "nazun inquiries deletable by logged in users" on public.nazun_inquiries;
+create policy "nazun inquiries deletable by logged in users"
+on public.nazun_inquiries for delete
+to authenticated
+using (true);
+
+drop policy if exists "nazun prediction state visible" on public.nazun_prediction_state;
+create policy "nazun prediction state visible"
+on public.nazun_prediction_state for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun prediction state writable" on public.nazun_prediction_state;
+create policy "nazun prediction state writable"
+on public.nazun_prediction_state for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "nazun prediction bets visible" on public.nazun_prediction_bets;
+create policy "nazun prediction bets visible"
+on public.nazun_prediction_bets for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "nazun prediction bets writable" on public.nazun_prediction_bets;
+create policy "nazun prediction bets writable"
+on public.nazun_prediction_bets for all
+to authenticated
+using (true)
+with check (true);
+
 alter table public.nazun_matches replica identity full;
 alter table public.nazun_match_comments replica identity full;
 alter table public.nazun_tier_posts replica identity full;
@@ -356,6 +483,10 @@ alter table public.nazun_tier_comment_reactions replica identity full;
 alter table public.nazun_user_points replica identity full;
 alter table public.nazun_match_point_mails replica identity full;
 alter table public.nazun_user_profiles replica identity full;
+alter table public.nazun_title_mails replica identity full;
+alter table public.nazun_inquiries replica identity full;
+alter table public.nazun_prediction_state replica identity full;
+alter table public.nazun_prediction_bets replica identity full;
 
 do $$
 begin
@@ -437,5 +568,33 @@ begin
       and tablename = 'nazun_user_profiles'
   ) then
     alter publication supabase_realtime add table public.nazun_user_profiles;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'nazun_title_mails'
+  ) then
+    alter publication supabase_realtime add table public.nazun_title_mails;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'nazun_inquiries'
+  ) then
+    alter publication supabase_realtime add table public.nazun_inquiries;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'nazun_prediction_state'
+  ) then
+    alter publication supabase_realtime add table public.nazun_prediction_state;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'nazun_prediction_bets'
+  ) then
+    alter publication supabase_realtime add table public.nazun_prediction_bets;
   end if;
 end $$;

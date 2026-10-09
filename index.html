@@ -14,6 +14,8 @@
         <button class="auth-button" id="authOpenButton" type="button">로그인</button>
         <div class="user-menu" id="userMenu">
           <button type="button" id="mailboxOpenButton">우편함 <span class="mail-alert-badge" aria-hidden="true">!</span></button>
+          <button type="button" id="myRecordButton">내 전적보기</button>
+          <button type="button" id="inquiryOpenButton">문의사항</button>
           <button type="button" id="lolpsButton">롤PS 바로가기</button>
           <button type="button" id="openRenameButton">이름 변경</button>
           <button type="button" id="logoutButton">로그아웃</button>
@@ -34,6 +36,7 @@
         <button class="tab" type="button" data-view="tier">티어표 📋</button>
         <button class="tab" type="button" data-view="gacha">뽑기 🎁</button>
         <button class="tab" type="button" data-view="inventory">인벤토리 🎒</button>
+        <button class="tab" type="button" data-view="prediction">승부예측 🔮</button>
         <button class="tab" type="button" data-view="admin">관리자 🔒</button>
       </nav>
 
@@ -126,6 +129,22 @@
         </section>
       </section>
 
+      <section class="view" id="predictionView">
+        <section class="panel prediction-panel">
+          <div class="prediction-state" id="predictionStateText"></div>
+          <div class="prediction-choice-row">
+            <button type="button" data-predict-team="blue">블루팀</button>
+            <button type="button" data-predict-team="red">레드팀</button>
+          </div>
+          <label>
+            <span>포인트</span>
+            <input id="predictionPointInput" type="number" min="1" step="1" />
+          </label>
+          <p class="auth-message" id="predictionMessage"></p>
+          <button id="predictionBetButton" type="button">예측하기</button>
+        </section>
+      </section>
+
       <section class="view" id="adminView">
         <section class="admin-lock panel" id="adminLock">
           <h2>관리자</h2>
@@ -159,6 +178,26 @@
                 </div>
               </div>
               <div class="match-team-picker">
+                <span class="team-label blue">블루 챔피언</span>
+                <div class="line-select-grid">
+                  <label><span>탑</span><input list="championOptions" data-champion-team="blue" data-champion-lane="탑" /></label>
+                  <label><span>정글</span><input list="championOptions" data-champion-team="blue" data-champion-lane="정글" /></label>
+                  <label><span>미드</span><input list="championOptions" data-champion-team="blue" data-champion-lane="미드" /></label>
+                  <label><span>원딜</span><input list="championOptions" data-champion-team="blue" data-champion-lane="원딜" /></label>
+                  <label><span>서폿</span><input list="championOptions" data-champion-team="blue" data-champion-lane="서폿" /></label>
+                </div>
+              </div>
+              <div class="match-team-picker">
+                <span class="team-label blue">블루 밴</span>
+                <div class="line-select-grid">
+                  <input list="championOptions" data-ban-team="blue" />
+                  <input list="championOptions" data-ban-team="blue" />
+                  <input list="championOptions" data-ban-team="blue" />
+                  <input list="championOptions" data-ban-team="blue" />
+                  <input list="championOptions" data-ban-team="blue" />
+                </div>
+              </div>
+              <div class="match-team-picker">
                 <span class="team-label red">레드팀</span>
                 <div class="line-select-grid">
                   <label><span>탑</span><select data-match-team="red" data-match-lane="탑"></select></label>
@@ -168,12 +207,36 @@
                   <label><span>서폿</span><select data-match-team="red" data-match-lane="서폿"></select></label>
                 </div>
               </div>
+              <div class="match-team-picker">
+                <span class="team-label red">레드 챔피언</span>
+                <div class="line-select-grid">
+                  <label><span>탑</span><input list="championOptions" data-champion-team="red" data-champion-lane="탑" /></label>
+                  <label><span>정글</span><input list="championOptions" data-champion-team="red" data-champion-lane="정글" /></label>
+                  <label><span>미드</span><input list="championOptions" data-champion-team="red" data-champion-lane="미드" /></label>
+                  <label><span>원딜</span><input list="championOptions" data-champion-team="red" data-champion-lane="원딜" /></label>
+                  <label><span>서폿</span><input list="championOptions" data-champion-team="red" data-champion-lane="서폿" /></label>
+                </div>
+              </div>
+              <div class="match-team-picker">
+                <span class="team-label red">레드 밴</span>
+                <div class="line-select-grid">
+                  <input list="championOptions" data-ban-team="red" />
+                  <input list="championOptions" data-ban-team="red" />
+                  <input list="championOptions" data-ban-team="red" />
+                  <input list="championOptions" data-ban-team="red" />
+                  <input list="championOptions" data-ban-team="red" />
+                </div>
+              </div>
               <label>
                 <span>승리팀</span>
                 <select id="winnerInput">
                   <option value="blue">블루팀</option>
                   <option value="red">레드팀</option>
                 </select>
+              </label>
+              <label>
+                <span>딜량 1등</span>
+                <select id="damageMvpInput"></select>
               </label>
               <label>
                 <span>메모</span>
@@ -198,9 +261,35 @@
             <p class="admin-note">계정이 만들어지고 롤 닉네임을 설정하면 멤버 명단에 자동으로 들어옵니다.</p>
             <div class="player-list admin-player-list" id="adminPlayerList"></div>
           </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h2>온 문의사항</h2>
+            </div>
+            <div class="inquiry-list" id="adminInquiryList"></div>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h2>승부예측</h2>
+            </div>
+            <form class="prediction-admin-form" id="predictionAdminForm">
+              <label><span>최대 포인트</span><input id="predictionMaxInput" type="number" min="1" step="1" /></label>
+              <button id="predictionStartButton" type="button">시작</button>
+              <button class="ghost" id="predictionLockButton" type="button">게임중</button>
+              <select id="predictionWinnerInput">
+                <option value="blue">블루팀</option>
+                <option value="red">레드팀</option>
+              </select>
+              <button id="predictionSettleButton" type="button">결과 적용</button>
+              <button class="ghost danger-button" id="predictionStopButton" type="button">중단</button>
+            </form>
+            <div class="prediction-admin-list" id="predictionAdminList"></div>
+          </article>
         </section>
       </section>
     </main>
+    <datalist id="championOptions"></datalist>
 
     <div class="patch-modal" id="patchModal" aria-hidden="true">
       <section class="patch-card" aria-label="패치노트">
@@ -212,12 +301,21 @@
           <aside class="patch-version-panel" aria-label="버전 선택">
             <strong>버전 선택</strong>
             <button class="patch-version-button is-active" type="button">beta 1.0</button>
+            <button class="patch-version-button" type="button">beta 1.1</button>
           </aside>
           <section class="patch-content-panel">
-            <h3>beta 1.0 업데이트</h3>
             <div class="patch-version-content">
               <ul>
                 <li>레몬방 내전 관리 사이트 운영 시작합니다 역시 정희석이야</li>
+              </ul>
+              <ul hidden>
+                <li>내전 기록에서 밴 목록과 사용한 챔피언 목록, 딜량 1등 추가</li>
+                <li>같은 챔피언 5번 이상 플레이시, 전용 칭호 획득</li>
+                <li>내 전적보기 버튼 추가</li>
+                <li>문의사항 추가</li>
+                <li>승부예측 추가</li>
+                <li>그외 버그, 가독성 패치</li>
+                <li>업데이트 기념 코드 : beta_1.1_update</li>
               </ul>
             </div>
           </section>
@@ -336,6 +434,23 @@
         <div class="reward-grade" id="rewardGrade"></div>
         <div class="reward-title" id="rewardTitle"></div>
         <button class="reward-confirm" id="rewardConfirmButton" type="button">확인</button>
+      </section>
+    </div>
+
+    <div class="record-modal" id="recordModal" aria-hidden="true">
+      <section class="auth-card wide-modal" aria-label="내 전적">
+        <button class="auth-close" id="recordCloseButton" type="button">닫기</button>
+        <div class="record-content" id="recordContent"></div>
+      </section>
+    </div>
+
+    <div class="inquiry-modal" id="inquiryModal" aria-hidden="true">
+      <section class="auth-card" aria-label="문의사항">
+        <button class="auth-close" id="inquiryCloseButton" type="button">닫기</button>
+        <label><span>제목</span><input id="inquiryTitleInput" maxlength="40" /></label>
+        <label><span>내용</span><textarea id="inquiryBodyInput" maxlength="400"></textarea></label>
+        <p class="auth-message" id="inquiryMessage"></p>
+        <button id="inquirySendButton" type="button">보내기</button>
       </section>
     </div>
 
