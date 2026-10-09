@@ -847,11 +847,11 @@ function teamChampionList(names = [], picks = []) {
 function matchDetailMarkup(match) {
   return `
     <div class="match-detail-grid">
-      <div><strong>블루 선택</strong><p>${teamChampionList(match.blue, match.bluePicks)}</p></div>
-      <div><strong>레드 선택</strong><p>${teamChampionList(match.red, match.redPicks)}</p></div>
-      <div><strong>블루 밴</strong><p>${(match.blueBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
-      <div><strong>레드 밴</strong><p>${(match.redBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
-      <div><strong>딜량 1등</strong><p>${match.damageMvp ? escapeHtml(match.damageMvp) : "없음"}</p></div>
+      <div class="pick-card"><strong>블루 선택</strong><p>${teamChampionList(match.blue, match.bluePicks)}</p></div>
+      <div class="pick-card"><strong>레드 선택</strong><p>${teamChampionList(match.red, match.redPicks)}</p></div>
+      <div class="ban-card"><strong>블루 밴</strong><p>${(match.blueBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
+      <div class="ban-card"><strong>레드 밴</strong><p>${(match.redBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
+      <div class="damage-card"><strong>딜량 1등</strong><p>${match.damageMvp ? escapeHtml(match.damageMvp) : "없음"}</p></div>
     </div>
   `;
 }
