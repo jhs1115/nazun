@@ -834,7 +834,12 @@ function commentAuthorName(comment) {
 }
 
 function teamChampionList(names = [], picks = []) {
-  return names.map((name, index) => `${decorateName(name)} <span class="champion-pill">${escapeHtml(picks[index] || "미입력")}</span>`).join("");
+  return names.map((name, index) => `
+    <span class="team-champion-row">
+      <span class="plain-player-name">${escapeHtml(name)}</span>
+      <span class="champion-pill">${escapeHtml(picks[index] || "미입력")}</span>
+    </span>
+  `).join("");
 }
 
 function matchDetailMarkup(match) {
@@ -844,7 +849,7 @@ function matchDetailMarkup(match) {
       <div><strong>레드 선택</strong><p>${teamChampionList(match.red, match.redPicks)}</p></div>
       <div><strong>블루 밴</strong><p>${(match.blueBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
       <div><strong>레드 밴</strong><p>${(match.redBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
-      <div><strong>딜량 1등</strong><p>${match.damageMvp ? decorateName(match.damageMvp) : "없음"}</p></div>
+      <div><strong>딜량 1등</strong><p>${match.damageMvp ? escapeHtml(match.damageMvp) : "없음"}</p></div>
     </div>
   `;
 }
