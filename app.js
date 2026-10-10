@@ -135,7 +135,7 @@ const TITLE_MAIL_TABLE = "nazun_title_mails";
 const INQUIRY_TABLE = "nazun_inquiries";
 const PREDICTION_STATE_TABLE = "nazun_prediction_state";
 const PREDICTION_BET_TABLE = "nazun_prediction_bets";
-const MAX_MATCHES = 10;
+const MAX_VISIBLE_MATCHES = 10;
 const SUPABASE_CONFIG = window.NAZUN_SUPABASE || {};
 const SUPABASE_READY = Boolean(window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
 const supabaseClient = SUPABASE_READY
@@ -1372,7 +1372,7 @@ async function loadRemoteMatches(showMessage = false) {
   if (!supabaseClient) return false;
 
   const [matchesResult, commentsResult, reactionsResult] = await Promise.all([
-    supabaseClient.from(MATCH_TABLE).select("*").order("created_at", { ascending: false }).limit(MAX_MATCHES),
+    supabaseClient.from(MATCH_TABLE).select("*").order("created_at", { ascending: false }),
     supabaseClient.from(COMMENT_TABLE).select("*").order("created_at", { ascending: true }),
     supabaseClient.from(COMMENT_REACTION_TABLE).select("*"),
   ]);
@@ -1411,7 +1411,7 @@ async function loadRemoteMatches(showMessage = false) {
   }
 
   state.remoteMatchesReady = true;
-  state.matches = (matchesResult.data || []).map((row) => normalizeRemoteMatch(row, commentsByMatch)).slice(0, MAX_MATCHES);
+  state.matches = (matchesResult.data || []).map((row) => normalizeRemoteMatch(row, commentsByMatch));
   saveMatches();
   renderManager();
   return true;
@@ -1438,20 +1438,7 @@ async function saveRemoteMatch(match) {
   state.remoteMatchesReady = true;
   await createMatchPointMails(match);
   await createChampionTitleMails(match);
-  await trimRemoteMatches();
   return true;
-}
-
-async function trimRemoteMatches() {
-  if (!supabaseClient) return;
-  const { data, error } = await supabaseClient
-    .from(MATCH_TABLE)
-    .select("id")
-    .order("created_at", { ascending: false })
-    .range(MAX_MATCHES, 1000);
-  if (!error && data?.length) {
-    await supabaseClient.from(MATCH_TABLE).delete().in("id", data.map((row) => row.id));
-  }
 }
 
 async function clearRemoteMatches() {
@@ -1682,7 +1669,7 @@ function renderRankings() {
     table.set(player.name, { name: player.name, win: 0, loss: 0, games: 0 });
   }
 
-  for (const match of state.matches.slice(0, MAX_MATCHES)) {
+  for (const match of state.matches) {
     const winners = match.winner === "blue" ? match.blue : match.red;
     const losers = match.winner === "blue" ? match.red : match.blue;
     for (const name of winners) {
@@ -1723,7 +1710,7 @@ function renderRankings() {
 
 function renderHistory() {
   els.historyList.replaceChildren(
-    ...state.matches.slice(0, MAX_MATCHES).map((match, index) => {
+    ...state.matches.slice(0, MAX_VISIBLE_MATCHES).map((match, index) => {
       const matchId = getMatchId(match);
       const comments = Array.isArray(match.comments) ? match.comments : [];
       const isOpen = state.openComments.has(matchId);
@@ -1788,7 +1775,7 @@ function renderHistory() {
 
 function renderAdminHistory() {
   if (!els.adminHistoryList) return;
-  const rows = state.matches.slice(0, MAX_MATCHES).map((match, index) => {
+  const rows = state.matches.map((match, index) => {
     const winner = match.winner === "blue" ? "블루팀" : "레드팀";
     const winnerClass = match.winner === "blue" ? "blue" : "red";
     const el = document.createElement("div");
@@ -2328,7 +2315,6 @@ els.inhouseMatchForm.addEventListener("submit", async (event) => {
     comments: [],
   };
   state.matches.unshift(nextMatch);
-  state.matches = state.matches.slice(0, MAX_MATCHES);
   resetMatchSelects();
   els.matchMemoInput.value = "";
   setMessage(els.matchFormMessage, "경기 결과를 저장했습니다.");
