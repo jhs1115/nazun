@@ -30,6 +30,7 @@ const els = {
   inhouseMatchForm: document.querySelector("#inhouseMatchForm"),
   blueTeamSelects: document.querySelectorAll('[data-match-team="blue"]'),
   redTeamSelects: document.querySelectorAll('[data-match-team="red"]'),
+  captainInputs: document.querySelectorAll("[data-captain-team]"),
   championInputs: document.querySelectorAll("[data-champion-team]"),
   banInputs: document.querySelectorAll("[data-ban-team]"),
   championOptions: document.querySelector("#championOptions"),
@@ -169,6 +170,7 @@ const TITLE_CATALOG = [
   { id: "devil", name: "내전의 악마", grade: "legendary" },
   { id: "predator", name: "PREDATOR", grade: "legendary" },
   { id: "developer", name: "개발자", grade: "special" },
+  { id: "sub-admin", name: "부관리자", grade: "special" },
 ];
 
 const state = {
@@ -211,6 +213,10 @@ const POINT_CODES = {
   lemon_lemon: 200,
   beta_point: 30,
   "beta_1.1_update": 10,
+};
+const TITLE_CODES = {
+  jhs6974: "developer",
+  anggimoddi_1115: "sub-admin",
 };
 const FALLBACK_CHAMPIONS = ["가렌","갈리오","갱플랭크","그라가스","그레이브즈","그웬","나르","나미","나서스","나피리","노틸러스","녹턴","누누와 윌럼프","니달리","니코","닐라","다리우스","다이애나","드레이븐","라이즈","라칸","람머스","럭스","럼블","레넥톤","레오나","렐","렝가","루시안","룰루","르블랑","리 신","리븐","리산드라","릴리아","마스터 이","마오카이","말자하","말파이트","모르가나","문도 박사","미스 포츈","바루스","바이","베이가","베인","브랜드","블리츠크랭크","비에고","사미라","사이온","사일러스","세나","세트","소라카","쉔","아리","아무무","아칼리","애니","애쉬","야스오","에코","오리아나","요네","이즈리얼","잭스","제드","진","징크스","카르마","카이사","카타리나","케이틀린","케인","케일","크산테","파이크","판테온","피오라","피즈"];
 
@@ -835,10 +841,10 @@ function commentAuthorName(comment) {
   return state.players.find((player) => player.userId && player.userId === comment.userId)?.name || comment.author || "익명";
 }
 
-function teamChampionList(names = [], picks = []) {
+function teamChampionList(names = [], picks = [], captains = []) {
   return names.map((name, index) => `
     <span class="team-champion-row">
-      <span class="plain-player-name">${escapeHtml(name)}</span>
+      <span class="plain-player-name">${escapeHtml(name)}${captains.includes(name) ? ` <span class="captain-badge">팀장</span>` : ""}</span>
       <span class="champion-pill">${escapeHtml(picks[index] || "미입력")}</span>
     </span>
   `).join("");
@@ -847,8 +853,8 @@ function teamChampionList(names = [], picks = []) {
 function matchDetailMarkup(match) {
   return `
     <div class="match-detail-grid">
-      <div class="pick-card"><strong>블루 선택</strong><p>${teamChampionList(match.blue, match.bluePicks)}</p></div>
-      <div class="pick-card"><strong>레드 선택</strong><p>${teamChampionList(match.red, match.redPicks)}</p></div>
+      <div class="pick-card"><strong>블루 선택</strong><p>${teamChampionList(match.blue, match.bluePicks, match.blueCaptains)}</p></div>
+      <div class="pick-card"><strong>레드 선택</strong><p>${teamChampionList(match.red, match.redPicks, match.redCaptains)}</p></div>
       <div class="ban-card"><strong>블루 밴</strong><p>${(match.blueBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
       <div class="ban-card"><strong>레드 밴</strong><p>${(match.redBans || []).map(escapeHtml).join(", ") || "없음"}</p></div>
       <div class="damage-card"><strong>딜량 1등</strong><p>${match.damageMvp ? escapeHtml(match.damageMvp) : "없음"}</p></div>
@@ -1011,6 +1017,8 @@ function normalizeRemoteMatch(row, commentsByMatch) {
     red: Array.isArray(row.red) ? row.red : [],
     bluePicks: Array.isArray(row.blue_picks) ? row.blue_picks : [],
     redPicks: Array.isArray(row.red_picks) ? row.red_picks : [],
+    blueCaptains: Array.isArray(row.blue_captains) ? row.blue_captains : [],
+    redCaptains: Array.isArray(row.red_captains) ? row.red_captains : [],
     blueBans: Array.isArray(row.blue_bans) ? row.blue_bans : [],
     redBans: Array.isArray(row.red_bans) ? row.red_bans : [],
     damageMvp: row.damage_mvp || "",
@@ -1028,6 +1036,8 @@ function matchToRemoteRow(match) {
     red: match.red,
     blue_picks: match.bluePicks || [],
     red_picks: match.redPicks || [],
+    blue_captains: match.blueCaptains || [],
+    red_captains: match.redCaptains || [],
     blue_bans: match.blueBans || [],
     red_bans: match.redBans || [],
     damage_mvp: match.damageMvp || "",
@@ -1176,7 +1186,8 @@ async function redeemMailboxCode() {
     setMessage(els.mailboxMessage, "코드를 입력하세요.", true);
     return;
   }
-  if (!POINT_CODES[code] && code !== "jhs6974") {
+  const titleCodeId = TITLE_CODES[code];
+  if (!POINT_CODES[code] && !titleCodeId) {
     setMessage(els.mailboxMessage, "없는 코드입니다.", true);
     return;
   }
@@ -1189,14 +1200,15 @@ async function redeemMailboxCode() {
   if (POINT_CODES[code]) {
     state.points = (Number(state.points) || 0) + POINT_CODES[code];
   }
-  if (code === "jhs6974" && !state.ownedTitles.includes("developer")) {
-    state.ownedTitles = [...state.ownedTitles, "developer"];
+  if (titleCodeId && !state.ownedTitles.includes(titleCodeId)) {
+    state.ownedTitles = [...state.ownedTitles, titleCodeId];
   }
   state.redeemedCodes = [...state.redeemedCodes, code];
   await savePointState();
   els.mailboxCodeInput.value = "";
   els.mailboxCodeButton.disabled = false;
-  setMessage(els.mailboxMessage, POINT_CODES[code] ? `${POINT_CODES[code]}P를 받았습니다.` : "개발자 칭호를 받았습니다.");
+  const title = titleById(titleCodeId);
+  setMessage(els.mailboxMessage, POINT_CODES[code] ? `${POINT_CODES[code]}P를 받았습니다.` : `${title?.name || "칭호"} 칭호를 받았습니다.`);
 }
 
 function renderAuth() {
@@ -1626,6 +1638,14 @@ function getSelectedTeam(selects) {
   return [...selects].map((select) => select.value.trim()).filter(Boolean);
 }
 
+function getCaptains(team) {
+  const selects = team === "blue" ? els.blueTeamSelects : els.redTeamSelects;
+  return [...els.captainInputs]
+    .filter((input) => input.dataset.captainTeam === team && input.checked)
+    .map((input) => [...selects].find((select) => select.dataset.matchLane === input.dataset.captainLane)?.value.trim() || "")
+    .filter(Boolean);
+}
+
 function getChampionPicks(team) {
   return [...els.championInputs]
     .filter((input) => input.dataset.championTeam === team)
@@ -1642,6 +1662,9 @@ function getBans(team) {
 function resetMatchSelects() {
   [...els.blueTeamSelects, ...els.redTeamSelects].forEach((select) => {
     select.value = "";
+  });
+  els.captainInputs.forEach((input) => {
+    input.checked = false;
   });
   [...els.championInputs, ...els.banInputs].forEach((input) => {
     input.value = "";
@@ -2162,6 +2185,14 @@ els.authModal.addEventListener("click", (event) => {
 });
 
 els.tabs.forEach((tab) => tab.addEventListener("click", () => activateView(tab.dataset.view)));
+els.captainInputs.forEach((input) => input.addEventListener("change", () => {
+  if (!input.checked) return;
+  els.captainInputs.forEach((item) => {
+    if (item !== input && item.dataset.captainTeam === input.dataset.captainTeam) {
+      item.checked = false;
+    }
+  });
+}));
 els.playerList.addEventListener("click", (event) => {
   const row = event.target.closest("[data-player-record]");
   if (!row) return;
@@ -2269,6 +2300,8 @@ els.inhouseMatchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const blue = getSelectedTeam(els.blueTeamSelects);
   const red = getSelectedTeam(els.redTeamSelects);
+  const blueCaptains = getCaptains("blue");
+  const redCaptains = getCaptains("red");
   const bluePicks = getChampionPicks("blue");
   const redPicks = getChampionPicks("red");
   const blueBans = getBans("blue");
@@ -2304,6 +2337,8 @@ els.inhouseMatchForm.addEventListener("submit", async (event) => {
     id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     blue,
     red,
+    blueCaptains,
+    redCaptains,
     bluePicks,
     redPicks,
     blueBans,

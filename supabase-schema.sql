@@ -4,6 +4,8 @@ create table if not exists public.nazun_matches (
   red text[] not null default '{}',
   blue_picks text[] not null default '{}',
   red_picks text[] not null default '{}',
+  blue_captains text[] not null default '{}',
+  red_captains text[] not null default '{}',
   blue_bans text[] not null default '{}',
   red_bans text[] not null default '{}',
   damage_mvp text not null default '',
@@ -137,6 +139,8 @@ create table if not exists public.nazun_prediction_bets (
 
 alter table public.nazun_matches add column if not exists blue_picks text[] not null default '{}';
 alter table public.nazun_matches add column if not exists red_picks text[] not null default '{}';
+alter table public.nazun_matches add column if not exists blue_captains text[] not null default '{}';
+alter table public.nazun_matches add column if not exists red_captains text[] not null default '{}';
 alter table public.nazun_matches add column if not exists blue_bans text[] not null default '{}';
 alter table public.nazun_matches add column if not exists red_bans text[] not null default '{}';
 alter table public.nazun_matches add column if not exists damage_mvp text not null default '';
