@@ -412,6 +412,18 @@ h2 {
   text-shadow: 0 0 3px rgba(255, 255, 255, 0.35), 0 1px 2px rgba(37, 22, 93, 0.36);
 }
 
+.title-special.title-champion {
+  color: #fff;
+  background: linear-gradient(115deg, var(--champion-start, #23535c), var(--champion-end, #287c87), var(--champion-start, #23535c));
+  background-size: 220% 100%;
+  box-shadow: 0 0 9px color-mix(in srgb, var(--champion-glow, #76d8de) 35%, transparent);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+  animation-duration: 4s;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .auth-button .title-chip,
 .history-meta .title-chip,
 .admin-history-info .title-chip,

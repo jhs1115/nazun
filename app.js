@@ -173,6 +173,8 @@ const TITLE_CATALOG = [
   { id: "sub-admin", name: "부관리자", grade: "special" },
 ];
 
+const CHAMPION_TITLES = window.NAZUN_CHAMPION_TITLES || {};
+
 const state = {
   players: readStore(PLAYER_STORE_KEY, []),
   matches: readStore(MATCH_STORE_KEY, []),
@@ -190,8 +192,8 @@ const state = {
   mailboxRewards: [],
   titleMails: [],
   inquiries: [],
-  championNames: [],
-  championUltimates: {},
+  championNames: Object.keys(CHAMPION_TITLES),
+  championUltimates: Object.fromEntries(Object.entries(CHAMPION_TITLES).map(([name, data]) => [name, data.ultimate])),
   prediction: { active: false, locked: false, maxPoints: 0, winner: "", roundId: "" },
   predictionBets: [],
   selectedPredictionTeam: "blue",
@@ -257,9 +259,10 @@ function championTitleId(champion) {
 function championTitle(champion) {
   return {
     id: championTitleId(champion),
-    name: state.championUltimates[champion] || `${champion} 장인`,
+    name: CHAMPION_TITLES[champion]?.ultimate || state.championUltimates[champion] || `${champion} 궁극기`,
     grade: "special",
     champion,
+    colors: CHAMPION_TITLES[champion]?.colors,
   };
 }
 
@@ -272,16 +275,12 @@ async function loadChampionData() {
   try {
     const versions = await fetch("https://ddragon.leagueoflegends.com/api/versions.json").then((res) => res.json());
     const data = await fetch(`https://ddragon.leagueoflegends.com/cdn/${versions[0]}/data/ko_KR/champion.json`).then((res) => res.json());
-    const champions = Object.values(data.data || {}).map((champion) => ({
-      name: champion.name,
-      ultimate: champion.spells?.[3]?.name || `${champion.name} 장인`,
-    })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    const champions = Object.values(data.data || {}).sort((a, b) => a.name.localeCompare(b.name, "ko"));
     if (champions.length) {
-      state.championNames = champions.map((champion) => champion.name);
-      state.championUltimates = Object.fromEntries(champions.map((champion) => [champion.name, champion.ultimate]));
+      state.championNames = [...new Set([...Object.keys(CHAMPION_TITLES), ...champions.map((champion) => champion.name)])].sort((a, b) => a.localeCompare(b, "ko"));
     }
   } catch {
-    state.championNames = FALLBACK_CHAMPIONS;
+    if (!state.championNames.length) state.championNames = FALLBACK_CHAMPIONS;
   }
   renderChampionOptions();
   renderAuth();
@@ -644,8 +643,8 @@ function renderMailbox() {
     <article class="mailbox-item">
       <div>
         <strong>${mail.type === "title" ? "칭호 보상" : mail.result === "win" ? "승리 보상" : "패배 보상"}</strong>
-        <small>${mail.type === "title" ? `${escapeHtml(mail.champion)} 5회 플레이 보상입니다.` : `${formatDate(mail.createdAt)} 경기 ${mail.result === "win" ? "승리" : "패배"} 기록 보상입니다.`}</small>
-        <span>${mail.type === "title" ? escapeHtml(mail.titleName) : `${Number(mail.amount) || 0}P`}</span>
+        <small>${mail.type === "title" ? `${escapeHtml(mail.champion)} 5회 승리 보상입니다.` : `${formatDate(mail.createdAt)} 경기 ${mail.result === "win" ? "승리" : "패배"} 기록 보상입니다.`}</small>
+        <span>${mail.type === "title" ? titleMarkup(championTitle(mail.champion)) : `${Number(mail.amount) || 0}P`}</span>
       </div>
       <button class="mail-claim-button" type="button" ${mail.type === "title" ? `data-claim-title-mail="${escapeHtml(mail.id)}"` : `data-claim-mail="${escapeHtml(mail.id)}"`}>받기</button>
     </article>
@@ -797,7 +796,7 @@ async function claimTitleMail(mailId) {
     state.ownedTitles = [...state.ownedTitles, mail.titleId];
   }
   await savePointState();
-  setMessage(els.mailboxMessage, `${mail.titleName} 칭호를 받았습니다.`);
+  setMessage(els.mailboxMessage, `${championTitle(mail.champion).name} 칭호를 받았습니다.`);
   await loadMailboxRewards();
 }
 
@@ -806,12 +805,14 @@ function titleById(id) {
 }
 
 function titleClass(title) {
-  return `title-chip title-${title?.grade || "common"}${title?.id === "sub-admin" ? " title-sub-admin" : ""}`;
+  return `title-chip title-${title?.grade || "common"}${title?.id === "sub-admin" ? " title-sub-admin" : ""}${title?.champion ? " title-champion" : ""}`;
 }
 
 function titleMarkup(title) {
   if (!title) return "";
-  return `<span class="${titleClass(title)}">${escapeHtml(title.name)}</span>`;
+  const colors = title.colors;
+  const palette = colors ? ` style="--champion-start:${escapeHtml(colors[0])};--champion-end:${escapeHtml(colors[1])};--champion-glow:${escapeHtml(colors[2])}"` : "";
+  return `<span class="${titleClass(title)}"${palette}>${escapeHtml(title.name)}</span>`;
 }
 
 function setCapsuleMessage(message) {
