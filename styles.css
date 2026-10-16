@@ -414,14 +414,27 @@ h2 {
 
 .title-special.title-champion {
   color: #fff;
-  background: linear-gradient(115deg, var(--champion-start, #23535c), var(--champion-end, #287c87), var(--champion-start, #23535c));
-  background-size: 220% 100%;
-  box-shadow: 0 0 9px color-mix(in srgb, var(--champion-glow, #76d8de) 35%, transparent);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
-  animation-duration: 4s;
+  background: linear-gradient(115deg, var(--champion-start, #23535c) 0%, var(--champion-end, #287c87) 34%, var(--champion-accent, #68429b) 68%, var(--champion-start, #23535c) 100%);
+  background-size: 180% 100%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 0 6px color-mix(in srgb, var(--champion-glow, #76d8de) 28%, transparent),
+    0 2px 12px color-mix(in srgb, var(--champion-accent, #68429b) 15%, transparent);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 0 3px rgba(255, 255, 255, 0.12);
+  animation: championColorFlow 12s ease-in-out infinite;
   max-width: 100%;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+@keyframes championColorFlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-special.title-champion { animation: none; }
 }
 
 .auth-button .title-chip,
@@ -1949,6 +1962,18 @@ button.reward-capsule {
   font-size: 14px;
   font-weight: 850;
   line-height: 1.5;
+}
+
+.auction-empty-state {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  padding: 32px 20px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .tool-view {

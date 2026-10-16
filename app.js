@@ -811,7 +811,7 @@ function titleClass(title) {
 function titleMarkup(title) {
   if (!title) return "";
   const colors = title.colors;
-  const palette = colors ? ` style="--champion-start:${escapeHtml(colors[0])};--champion-end:${escapeHtml(colors[1])};--champion-glow:${escapeHtml(colors[2])}"` : "";
+  const palette = colors ? ` style="--champion-start:${escapeHtml(colors[0])};--champion-end:${escapeHtml(colors[1])};--champion-glow:${escapeHtml(colors[2])};--champion-accent:${escapeHtml(colors[3] || colors[1])}"` : "";
   return `<span class="${titleClass(title)}"${palette}>${escapeHtml(title.name)}</span>`;
 }
 
