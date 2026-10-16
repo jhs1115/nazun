@@ -806,7 +806,7 @@ function titleById(id) {
 }
 
 function titleClass(title) {
-  return `title-chip title-${title?.grade || "common"}`;
+  return `title-chip title-${title?.grade || "common"}${title?.id === "sub-admin" ? " title-sub-admin" : ""}`;
 }
 
 function titleMarkup(title) {
@@ -1176,6 +1176,7 @@ function setCurrentUser(user) {
 }
 
 async function redeemMailboxCode() {
+  if (els.mailboxCodeButton.disabled) return;
   if (!state.currentUser) {
     closeMailbox();
     openAuth("login");
@@ -1187,7 +1188,8 @@ async function redeemMailboxCode() {
     return;
   }
   const titleCodeId = TITLE_CODES[code];
-  if (!POINT_CODES[code] && !titleCodeId) {
+  const allTitleCode = code === "all_chingho_1115";
+  if (!POINT_CODES[code] && !titleCodeId && !allTitleCode) {
     setMessage(els.mailboxMessage, "없는 코드입니다.", true);
     return;
   }
@@ -1197,6 +1199,10 @@ async function redeemMailboxCode() {
   }
 
   els.mailboxCodeButton.disabled = true;
+  if (allTitleCode) {
+    if (!state.championNames.length) await loadChampionData();
+    state.ownedTitles = [...new Set([...state.ownedTitles, ...allTitles().map((title) => title.id)])];
+  }
   if (POINT_CODES[code]) {
     state.points = (Number(state.points) || 0) + POINT_CODES[code];
   }
@@ -1208,7 +1214,8 @@ async function redeemMailboxCode() {
   els.mailboxCodeInput.value = "";
   els.mailboxCodeButton.disabled = false;
   const title = titleById(titleCodeId);
-  setMessage(els.mailboxMessage, POINT_CODES[code] ? `${POINT_CODES[code]}P를 받았습니다.` : `${title?.name || "칭호"} 칭호를 받았습니다.`);
+  renderCollectibles();
+  setMessage(els.mailboxMessage, allTitleCode ? "모든 칭호를 받았습니다." : POINT_CODES[code] ? `${POINT_CODES[code]}P를 받았습니다.` : `${title?.name || "칭호"} 칭호를 받았습니다.`);
 }
 
 function renderAuth() {
