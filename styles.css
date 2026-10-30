@@ -1964,6 +1964,119 @@ button.reward-capsule {
   line-height: 1.5;
 }
 
+.item-use-notice {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 180;
+  max-width: min(620px, calc(100% - 32px));
+  padding: 16px 22px;
+  border: 1px solid #b9ceeb;
+  border-radius: 8px;
+  background: #fff;
+  color: #233049;
+  box-shadow: 0 8px 28px rgba(28, 44, 80, 0.18);
+  font-size: 17px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.local-item-effect {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.item-particle {
+  position: absolute;
+  bottom: 20%;
+  color: #df5481;
+  font-size: 36px;
+  opacity: 0;
+  animation: itemFloat 2.5s ease-out var(--effect-delay) forwards;
+  text-shadow: 0 0 12px rgba(223, 84, 129, 0.22);
+}
+
+.effect-star-candy { color: #dfae35; }
+.effect-moon-milk { color: #8396d6; }
+.effect-cloud-cup { color: #70bbd6; }
+
+@keyframes itemFloat {
+  0% { opacity: 0; transform: translateY(0) scale(0.65); }
+  15% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-240px) scale(1.15); }
+}
+
+.item-choice-dialog {
+  width: min(520px, calc(100% - 32px));
+  max-height: min(680px, calc(100dvh - 40px));
+  padding: 20px;
+  border: 1px solid #ccd9ed;
+  border-radius: 8px;
+  background: #fff;
+  color: #233049;
+  overflow-y: auto;
+}
+
+.item-choice-dialog::backdrop {
+  background: rgba(25, 32, 51, 0.38);
+  backdrop-filter: blur(8px);
+}
+
+.item-choice-dialog form { display: grid; gap: 12px; }
+.item-choice-list { height: min(390px, 50dvh); overflow-y: auto; }
+.item-choice-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  border-bottom: 1px solid #e7edf5;
+  cursor: pointer;
+}
+.item-choice-option input { width: 18px; min-height: 18px; margin: 0; flex-shrink: 0; }
+.item-choice-option span { color: #233049; overflow-wrap: anywhere; }
+.item-choice-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.item-choice-dialog p { margin: 0; color: #b52f48; }
+.inventory-card.item-inventory-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  min-width: 0;
+  gap: 10px;
+  border-radius: 8px;
+}
+.item-inventory-card > strong, .item-inventory-card > p { grid-column: 1 / -1; }
+.item-inventory-card > button { min-width: 64px; }
+.item-inventory-card strong, .item-inventory-card p { overflow-wrap: anywhere; }
+.item-inventory-card p { margin: 0; color: #52617b; font-size: 13px; line-height: 1.6; }
+.item-inventory-card .item-nested-rates {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.item-nested-rates .rate-row { padding: 6px 8px; border-radius: 6px; }
+.item-reward-list { display: grid; gap: 8px; max-height: min(400px, 55dvh); overflow-y: auto; text-align: left; }
+.item-reward-row { display: flex; justify-content: space-between; gap: 14px; padding: 10px 0; font-size: 15px; }
+.item-reward-row strong { min-width: 0; overflow-wrap: anywhere; }
+.item-reward-row > span { flex-shrink: 0; }
+#gachaView .gacha-side { grid-template-rows: none; grid-auto-rows: min-content; align-content: start; }
+#itemBatchButton { min-height: 46px; }
+#rateList { max-height: 580px; overflow-y: auto; }
+.reward-title:has(.item-reward-list) { width: 100%; min-width: 0; }
+.rate-row > span { min-width: 0; overflow-wrap: anywhere; }
+.rate-row > strong { flex-shrink: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .item-particle { animation-duration: 0.8s; }
+}
+
 .auction-empty-state {
   display: grid;
   place-items: center;
@@ -2069,7 +2182,24 @@ button.reward-capsule {
   }
 
   .top-controls {
-    right: 10px;
+    position: relative;
+    top: auto;
+    right: auto;
+    margin: 12px 10px 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .screen-menu {
+    position: relative;
+    top: auto;
+    left: auto;
+  }
+
+  .tabs {
+    top: 112px;
+    max-height: calc(100dvh - 128px);
+    overflow-y: auto;
   }
 
   .auth-button,

@@ -16,6 +16,7 @@ const els = {
   gachaMachine: document.querySelector("#gachaMachine"),
   gachaDrawButton: document.querySelector("#gachaDrawButton"),
   gachaDrawPanelButton: document.querySelector("#gachaDrawPanelButton"),
+  itemBatchButton: document.querySelector("#itemBatchButton"),
   gachaTray: document.querySelector("#gachaTray"),
   capsuleMessage: document.querySelector("#capsuleMessage"),
   rewardModal: document.querySelector("#rewardModal"),
@@ -178,6 +179,20 @@ const TITLE_CATALOG = [
 ];
 
 const CHAMPION_TITLES = window.NAZUN_CHAMPION_TITLES || {};
+const ITEM_CATALOG = [
+  { id: "developer-love", name: "개발자의 무한한 사랑", rate: 30, grade: "common", description: "사용시 개발자의 사랑을 받습니다." },
+  { id: "no-ban", name: "노밴/노선점권", rate: 10, grade: "rare", description: "특정 챔피언의 밴과 1픽 선점을 막습니다." },
+  { id: "first-pick", name: "선픽/진영 선택권", rate: 15, grade: "rare", description: "가위바위보 결과와 관계없이 선픽 또는 진영을 선택합니다." },
+  { id: "title-voucher", name: "칭호 교환권", rate: 20, grade: "epic", description: "스페셜을 제외한 원하는 칭호로 교환합니다." },
+  { id: "replay-feedback", name: "리플레이 피드백권", rate: 20, grade: "epic", description: "개발자와 친구에게 리플레이 피드백을 요청합니다." },
+  { id: "champion-voucher", name: "챔피언별 스페셜 칭호 교환권", rate: 4, grade: "special", description: "챔피언을 선택해 전용 스페셜 칭호를 받습니다." },
+  { id: "legend-voucher", name: "레전드 교환권", rate: 1, grade: "legendary", description: "가상 아이템으로 교환합니다." },
+];
+const RPG_REWARDS = [
+  { id: "star-candy", name: "츄파춥스", rate: 70},
+  { id: "moon-milk", name: "초코에몽", rate: 25},
+  { id: "cloud-cup", name: "스타벅스", rate: 5},
+];
 
 const state = {
   players: readStore(PLAYER_STORE_KEY, []),
@@ -205,6 +220,11 @@ const state = {
   inventoryTab: "title",
   gachaBusy: false,
   pendingRewardTitle: "",
+  pendingRewardItems: [],
+  itemBusy: false,
+  itemChoiceId: "",
+  itemNoticeChannel: null,
+  itemNoticeReady: false,
   commentDrafts: {},
   remoteMatchesReady: false,
   realtimeChannel: null,
@@ -223,6 +243,9 @@ const POINT_CODES = {
 const TITLE_CODES = {
   jhs6974: "developer",
   anggimoddi_1115: "sub-admin",
+};
+const ITEM_CODES = {
+  test_item_legand: { id: "legend-voucher", count: 3 },
 };
 const FALLBACK_CHAMPIONS = ["가렌","갈리오","갱플랭크","그라가스","그레이브즈","그웬","나르","나미","나서스","나피리","노틸러스","녹턴","누누와 윌럼프","니달리","니코","닐라","다리우스","다이애나","드레이븐","라이즈","라칸","람머스","럭스","럼블","레넥톤","레오나","렐","렝가","루시안","룰루","르블랑","리 신","리븐","리산드라","릴리아","마스터 이","마오카이","말자하","말파이트","모르가나","문도 박사","미스 포츈","바루스","바이","베이가","베인","브랜드","블리츠크랭크","비에고","사미라","사이온","사일러스","세나","세트","소라카","쉔","아리","아무무","아칼리","애니","애쉬","야스오","에코","오리아나","요네","이즈리얼","잭스","제드","진","징크스","카르마","카이사","카타리나","케이틀린","케인","케일","크산테","파이크","판테온","피오라","피즈"];
 
@@ -879,12 +902,16 @@ function renderGacha() {
   const titleMode = state.gachaMode === "title";
   els.gachaModeButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.gachaMode === state.gachaMode);
+    button.disabled = state.gachaBusy;
   });
   els.gachaMachine.classList.toggle("item-machine", !titleMode);
   els.gachaMachine.classList.toggle("title-machine", titleMode);
-  els.gachaDrawPanelButton.textContent = titleMode ? `${TITLE_DRAW_COST}P로 칭호 뽑기` : "아이템뽑기 공사중";
-  els.gachaDrawPanelButton.disabled = !titleMode || state.gachaBusy;
-  els.gachaDrawButton.disabled = !titleMode || state.gachaBusy;
+  els.gachaDrawPanelButton.textContent = titleMode ? `${TITLE_DRAW_COST}P로 칭호 뽑기` : "1회 뽑기 · 20P";
+  els.gachaDrawPanelButton.disabled = state.gachaBusy;
+  els.gachaDrawButton.disabled = state.gachaBusy;
+  els.itemBatchButton.hidden = titleMode;
+  els.itemBatchButton.disabled = state.gachaBusy;
+  document.querySelector("#titleRateNote").hidden = !titleMode;
   els.rateList.innerHTML = titleMode
     ? TITLE_RATES.map((item) => `
         <div class="rate-row">
@@ -892,10 +919,8 @@ function renderGacha() {
           <strong>${item.rate}%</strong>
         </div>
       `).join("")
-    : `<div class="rate-row"><span>ITEM</span><strong>공사중</strong></div>`;
-  if (!titleMode) {
-    setCapsuleMessage("아이템뽑기 공사중");
-  } else if (!state.pendingRewardTitle && !state.gachaBusy) {
+    : ITEM_CATALOG.map((item) => `<div class="rate-row"><span>${escapeHtml(item.name)}</span><strong>${item.rate}%</strong></div>`).join("");
+  if (!state.pendingRewardTitle && !state.pendingRewardItems.length && !state.gachaBusy) {
     setCapsuleMessage("손잡이를 돌려 캡슐을 뽑으세요.");
   }
 }
@@ -907,14 +932,18 @@ function renderInventory() {
   });
 
   if (state.inventoryTab === "item") {
-    const entries = Object.entries(state.items || {});
+    const entries = Object.entries(state.items || {}).filter(([, count]) => Number(count) > 0);
     els.inventoryList.innerHTML = entries.length
-      ? entries.map(([name, count]) => `
-          <article class="inventory-card">
-            <strong>${escapeHtml(name)}</strong>
+      ? entries.map(([id, count]) => {
+        const item = itemById(id);
+        return `<article class="inventory-card item-inventory-card">
+            <strong class="grade-text grade-${item?.grade || "common"}">${escapeHtml(item?.name || id)}</strong>
+            <p>${escapeHtml(item?.description || "")}</p>
+            ${id === "legend-voucher" ? `<div class="item-nested-rates">${RPG_REWARDS.map((reward) => `<div class="rate-row"><span>${escapeHtml(reward.name)}</span><strong>${reward.rate}%</strong></div>`).join("")}</div>` : ""}
             <span>${Number(count) || 0}개</span>
-          </article>
-        `).join("")
+            ${item ? `<button class="ghost" type="button" data-use-item="${escapeHtml(id)}" ${state.itemBusy || state.gachaBusy ? "disabled" : ""}>사용</button>` : ""}
+          </article>`;
+      }).join("")
       : `<div class="empty inventory-empty">보유한 아이템이 없습니다.</div>`;
     return;
   }
@@ -933,6 +962,200 @@ function renderInventory() {
         </article>
       `).join("")
     : `<div class="empty inventory-empty">보유한 칭호가 없습니다.</div>`;
+}
+
+function itemById(id) {
+  return [...ITEM_CATALOG, ...RPG_REWARDS].find((item) => item.id === id);
+}
+
+function randomItem(pool) {
+  const roll = Math.random() * pool.reduce((sum, item) => sum + item.rate, 0);
+  let total = 0;
+  return pool.find((item) => (total += item.rate) > roll) || pool[pool.length - 1];
+}
+
+async function persistItemInventory(items, titles = state.ownedTitles, redeemedCodes = null, points = null) {
+  const userId = state.currentUser?.id;
+  if (!userId || !supabaseClient) throw new Error("로그인이 필요합니다.");
+  const { error } = await supabaseClient.from(POINT_TABLE)
+    .update({ items, owned_titles: titles, ...(redeemedCodes ? { redeemed_codes: redeemedCodes } : {}), ...(points !== null ? { points } : {}), updated_at: new Date().toISOString() })
+    .eq("user_id", userId).select("user_id").single();
+  if (error) throw new Error("저장하지 못했습니다. 다시 시도하세요.");
+  if (state.currentUser?.id !== userId) return false;
+  state.items = items;
+  state.ownedTitles = titles;
+  if (redeemedCodes) state.redeemedCodes = redeemedCodes;
+  if (points !== null) state.points = points;
+  saveLocalPointState();
+  renderPoints();
+  return true;
+}
+
+let itemNoticeTimer;
+function showItemNotice(message) {
+  const notice = document.querySelector("#itemUseNotice");
+  notice.textContent = message;
+  notice.hidden = false;
+  clearTimeout(itemNoticeTimer);
+  itemNoticeTimer = setTimeout(() => { notice.hidden = true; }, 5000);
+}
+
+function initItemAnnouncements() {
+  if (!supabaseClient) return;
+  state.itemNoticeChannel = supabaseClient.channel("nazun-item-announcements", { config: { broadcast: { self: false } } })
+    .on("broadcast", { event: "item-used" }, ({ payload }) => {
+      if (!["no-ban", "first-pick"].includes(payload?.itemId) || typeof payload.author !== "string") return;
+      showItemNotice(`${payload.author.slice(0, 80)}님이 ${itemById(payload.itemId).name} 아이템을 사용하였습니다!`);
+    }).subscribe((status) => { state.itemNoticeReady = status === "SUBSCRIBED"; });
+}
+
+function showLocalItemEffect(id) {
+  const host = document.querySelector("#localItemEffect");
+  const symbol = id === "developer-love" ? "♥" : id === "star-candy" ? "✦" : id === "moon-milk" ? "☾" : "☁";
+  host.replaceChildren(...Array.from({ length: 14 }, (_, index) => {
+    const particle = document.createElement("span");
+    particle.textContent = symbol;
+    particle.className = `item-particle effect-${id}`;
+    particle.style.left = `${8 + Math.random() * 84}%`;
+    particle.style.setProperty("--effect-delay", `${index * 55}ms`);
+    particle.addEventListener("animationend", () => particle.remove(), { once: true });
+    return particle;
+  }));
+}
+
+function openItemRewards() {
+  if (!state.pendingRewardItems.length) return;
+  const counts = new Map();
+  state.pendingRewardItems.forEach((id) => counts.set(id, (counts.get(id) || 0) + 1));
+  els.rewardGrade.textContent = "";
+  els.rewardTitle.innerHTML = `<div class="item-reward-list">${[...counts].map(([id, count]) => {
+    const item = itemById(id);
+    return `<div class="item-reward-row"><strong class="grade-text grade-${item.grade}">${escapeHtml(item.name)}</strong><span>×${count}</span></div>`;
+  }).join("")}</div>`;
+  els.rewardModal.classList.add("open");
+  els.rewardModal.setAttribute("aria-hidden", "false");
+}
+
+async function drawItems(count = 1) {
+  if (state.gachaBusy || state.itemBusy || state.pendingRewardItems.length) return;
+  if (!state.currentUser) return openAuth("login");
+  const cost = count === 11 ? 200 : 20;
+  if (!Number.isFinite(state.points) || state.points < cost) {
+    setCapsuleMessage("포인트가 부족합니다.");
+    return;
+  }
+  const userId = state.currentUser.id;
+  const rewards = Array.from({ length: count === 11 ? 11 : 1 }, () => randomItem(ITEM_CATALOG));
+  const best = rewards.reduce((a, b) => a.rate < b.rate ? a : b);
+  state.gachaBusy = true;
+  renderGacha();
+  els.gachaMachine.classList.add("is-drawing");
+  els.gachaTray.innerHTML = `<div class="reward-capsule capsule-${best.grade}"></div>`;
+  setCapsuleMessage("캡슐이 나오고 있습니다.");
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    if (state.currentUser?.id !== userId) return;
+    if (state.points < cost) throw new Error("포인트가 부족합니다.");
+    const items = { ...state.items };
+    rewards.forEach((item) => { items[item.id] = (Number(items[item.id]) || 0) + 1; });
+    if (!await persistItemInventory(items, state.ownedTitles, null, state.points - cost)) return;
+    state.pendingRewardItems = rewards.map((item) => item.id);
+    els.gachaTray.innerHTML = `<button class="reward-capsule opened capsule-${best.grade}" type="button" data-open-item-capsule aria-label="캡슐 열기"></button>`;
+    setCapsuleMessage("캡슐을 클릭하세요.");
+  } catch (error) {
+    els.gachaTray.innerHTML = "";
+    showItemNotice(error.message);
+  } finally {
+    state.gachaBusy = false;
+    els.gachaMachine.classList.remove("is-drawing");
+    renderGacha();
+    renderInventory();
+  }
+}
+
+function itemExchangeOptions(id) {
+  if (id === "champion-voucher") {
+    return state.championNames.map((name) => ({ value: championTitleId(name), label: name }))
+      .filter((option) => !state.ownedTitles.includes(option.value));
+  }
+  return TITLE_CATALOG.filter((title) => title.grade !== "special" && !state.ownedTitles.includes(title.id))
+    .map((title) => ({ value: title.id, label: title.name }));
+}
+
+function renderItemExchange() {
+  const search = document.querySelector("#itemChoiceSearch").value.trim().toLocaleLowerCase();
+  const options = itemExchangeOptions(state.itemChoiceId).filter((option) => option.label.toLocaleLowerCase().includes(search));
+  document.querySelector("#itemChoiceList").innerHTML = options.map((option) =>
+    `<label class="item-choice-option"><input type="radio" name="item-title" value="${escapeHtml(option.value)}" /><span>${escapeHtml(option.label)}</span></label>`
+  ).join("");
+  document.querySelector("#itemChoiceConfirm").disabled = !options.length || state.itemBusy;
+  document.querySelector("#itemChoiceMessage").textContent = options.length ? "" : "선택 가능한 칭호가 없습니다.";
+}
+
+async function useInventoryItem(id, selectedTitle = "") {
+  if (state.itemBusy || state.gachaBusy || !(Number(state.items[id]) > 0)) return;
+  if (!state.currentUser) return openAuth("login");
+  const userId = state.currentUser.id;
+  const author = getUserLabel(state.currentUser);
+  const item = itemById(id);
+  if (!item) return;
+  if (["title-voucher", "champion-voucher"].includes(id)) {
+    if (!selectedTitle) {
+      state.itemChoiceId = id;
+      document.querySelector("#itemChoiceSearch").value = "";
+      document.querySelector("#itemChoiceMessage").textContent = "";
+      renderItemExchange();
+      document.querySelector("#itemChoiceDialog").showModal();
+      return;
+    }
+    if (!itemExchangeOptions(id).some((option) => option.value === selectedTitle)) return;
+  }
+  const announce = ["no-ban", "first-pick"].includes(id);
+  if (announce && !state.itemNoticeReady) return showItemNotice("알림 연결 중입니다. 잠시 후 다시 시도하세요.");
+  state.itemBusy = true;
+  document.querySelector("#itemChoiceConfirm").disabled = true;
+  renderInventory();
+  try {
+    const items = { ...state.items, [id]: Number(state.items[id]) - 1 };
+    if (!items[id]) delete items[id];
+    const titles = selectedTitle ? [...new Set([...state.ownedTitles, selectedTitle])] : state.ownedTitles;
+    let reward;
+    if (id === "legend-voucher") {
+      reward = randomItem(RPG_REWARDS);
+      items[reward.id] = (Number(items[reward.id]) || 0) + 1;
+    }
+    if (id === "replay-feedback") {
+      const { error } = await supabaseClient.from(INQUIRY_TABLE).insert({
+        id: `feedback-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        user_id: userId, author,
+        title: "리플레이 피드백 요청", body: "리플레이 피드백권을 사용했습니다.", created_at: new Date().toISOString(),
+      });
+      if (error) throw new Error("피드백 요청을 보내지 못했습니다.");
+    }
+    if (state.currentUser?.id !== userId || !await persistItemInventory(items, titles)) return;
+    if (announce) {
+      const result = await state.itemNoticeChannel.send({ type: "broadcast", event: "item-used", payload: { itemId: id, author } });
+      if (result !== "ok") throw new Error("사용은 저장되었지만 전체 알림을 보내지 못했습니다.");
+      showItemNotice(`${author}님이 ${item.name} 아이템을 사용하였습니다!`);
+    } else if (id === "developer-love" || RPG_REWARDS.some((entry) => entry.id === id)) {
+      showLocalItemEffect(id);
+    } else if (reward) {
+      state.pendingRewardItems = [reward.id];
+      openItemRewards();
+    } else if (selectedTitle) {
+      document.querySelector("#itemChoiceDialog").close();
+      openRewardModal(titleById(selectedTitle));
+    } else {
+      showItemNotice("리플레이 피드백을 요청했습니다.");
+    }
+  } catch (error) {
+    if (document.querySelector("#itemChoiceDialog").open) document.querySelector("#itemChoiceMessage").textContent = error.message;
+    else showItemNotice(error.message);
+  } finally {
+    state.itemBusy = false;
+    document.querySelector("#itemChoiceConfirm").disabled = false;
+    renderCollectibles();
+  }
 }
 
 function pickTitleGrade() {
@@ -1004,8 +1227,9 @@ function closeRewardModal() {
   els.rewardModal.classList.remove("open");
   els.rewardModal.setAttribute("aria-hidden", "true");
   state.pendingRewardTitle = "";
+  state.pendingRewardItems = [];
   els.gachaTray.innerHTML = "";
-  setCapsuleMessage(state.gachaMode === "title" ? "손잡이를 돌려 캡슐을 뽑으세요." : "아이템뽑기 공사중");
+  setCapsuleMessage("손잡이를 돌려 캡슐을 뽑으세요.");
 }
 
 function getMatchId(match) {
@@ -1193,13 +1417,36 @@ async function redeemMailboxCode() {
     return;
   }
   const titleCodeId = TITLE_CODES[code];
+  const itemCode = ITEM_CODES[code];
   const allTitleCode = code === "all_chingho_1115";
-  if (!POINT_CODES[code] && !titleCodeId && !allTitleCode) {
+  if (!POINT_CODES[code] && !titleCodeId && !allTitleCode && !itemCode) {
     setMessage(els.mailboxMessage, "없는 코드입니다.", true);
     return;
   }
   if (state.redeemedCodes.includes(code)) {
     setMessage(els.mailboxMessage, "이미 사용한 코드입니다.", true);
+    return;
+  }
+
+  if (itemCode) {
+    if (state.itemBusy || state.gachaBusy) {
+      setMessage(els.mailboxMessage, "아이템 처리 후 다시 시도하세요.", true);
+      return;
+    }
+    state.itemBusy = true;
+    els.mailboxCodeButton.disabled = true;
+    try {
+      const items = { ...state.items, [itemCode.id]: (Number(state.items[itemCode.id]) || 0) + itemCode.count };
+      if (!await persistItemInventory(items, state.ownedTitles, [...state.redeemedCodes, code])) return;
+      els.mailboxCodeInput.value = "";
+      setMessage(els.mailboxMessage, `${itemById(itemCode.id).name} ${itemCode.count}개를 받았습니다.`);
+    } catch (error) {
+      setMessage(els.mailboxMessage, error.message, true);
+    } finally {
+      state.itemBusy = false;
+      els.mailboxCodeButton.disabled = false;
+      renderCollectibles();
+    }
     return;
   }
 
@@ -2226,14 +2473,18 @@ els.predictionLockButton.addEventListener("click", lockPrediction);
 els.predictionSettleButton.addEventListener("click", settlePrediction);
 els.predictionStopButton.addEventListener("click", stopPrediction);
 els.gachaModeButtons.forEach((button) => button.addEventListener("click", () => {
+  if (state.gachaBusy) return;
   state.gachaMode = button.dataset.gachaMode;
   state.pendingRewardTitle = "";
+  state.pendingRewardItems = [];
   els.gachaTray.innerHTML = "";
   renderGacha();
 }));
-els.gachaDrawButton.addEventListener("click", drawTitle);
-els.gachaDrawPanelButton.addEventListener("click", drawTitle);
+els.gachaDrawButton.addEventListener("click", () => state.gachaMode === "item" ? drawItems() : drawTitle());
+els.gachaDrawPanelButton.addEventListener("click", () => state.gachaMode === "item" ? drawItems() : drawTitle());
+els.itemBatchButton.addEventListener("click", () => drawItems(11));
 els.gachaTray.addEventListener("click", (event) => {
+  if (event.target.closest("[data-open-item-capsule]")) return openItemRewards();
   if (!event.target.closest("[data-open-capsule]")) return;
   openRewardModal(titleById(state.pendingRewardTitle));
 });
@@ -2243,12 +2494,27 @@ els.inventoryTabs.forEach((button) => button.addEventListener("click", () => {
   renderInventory();
 }));
 els.inventoryList.addEventListener("click", async (event) => {
+  const itemButton = event.target.closest("[data-use-item]");
+  if (itemButton) return useInventoryItem(itemButton.dataset.useItem);
+  if (state.itemBusy || state.gachaBusy) return;
   const button = event.target.closest("[data-equip-title]");
   if (!button) return;
   const titleId = button.dataset.equipTitle;
   state.equippedTitle = state.equippedTitle === titleId ? "" : titleId;
   await savePointState();
   renderCollectibles();
+});
+
+document.querySelector("#itemChoiceSearch").addEventListener("input", renderItemExchange);
+document.querySelector("#itemChoiceConfirm").addEventListener("click", () => {
+  const choice = document.querySelector('#itemChoiceList input:checked');
+  if (choice) useInventoryItem(state.itemChoiceId, choice.value);
+});
+document.querySelector("#itemChoiceForm").addEventListener("submit", (event) => {
+  if (state.itemBusy) event.preventDefault();
+});
+document.querySelector("#itemChoiceDialog").addEventListener("cancel", (event) => {
+  if (state.itemBusy) event.preventDefault();
 });
 
 document.querySelectorAll(".tool-view iframe").forEach((frame) => {
@@ -2472,6 +2738,7 @@ els.resetRankingButton.addEventListener("click", () => {
 });
 
 initTheme();
+initItemAnnouncements();
 loadChampionData();
 renderChampionOptions();
 loadLocalPointState();

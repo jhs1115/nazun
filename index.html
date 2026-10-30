@@ -103,10 +103,11 @@
               </div>
               <aside class="gacha-side">
                 <button class="gacha-draw-button" id="gachaDrawPanelButton" type="button">10P로 뽑기</button>
+                <button class="ghost" id="itemBatchButton" type="button" hidden>10 + 1회 뽑기 · 200P</button>
                 <div class="rate-card">
                   <h3>확률표</h3>
                   <div id="rateList" class="rate-list"></div>
-                  <p>스페셜 칭호는 뽑기에서 나오지 않습니다.</p>
+                  <p id="titleRateNote">스페셜 칭호는 뽑기에서 나오지 않습니다.</p>
                 </div>
               </aside>
             </div>
@@ -428,6 +429,20 @@
         <p class="auth-message mailbox-message" id="mailboxMessage"></p>
       </section>
     </div>
+
+    <div class="item-use-notice" id="itemUseNotice" role="status" aria-live="polite" hidden></div>
+    <div class="local-item-effect" id="localItemEffect" aria-hidden="true"></div>
+    <dialog class="item-choice-dialog" id="itemChoiceDialog">
+      <form method="dialog" id="itemChoiceForm">
+        <input id="itemChoiceSearch" type="search" placeholder="검색" autocomplete="off" aria-label="검색" />
+        <div class="item-choice-list" id="itemChoiceList"></div>
+        <p id="itemChoiceMessage" role="status"></p>
+        <div class="item-choice-actions">
+          <button class="ghost" value="cancel" type="submit">취소</button>
+          <button class="ghost" id="itemChoiceConfirm" type="button">사용</button>
+        </div>
+      </form>
+    </dialog>
 
     <div class="reward-modal" id="rewardModal" aria-hidden="true">
       <section class="reward-card" aria-label="뽑기 결과">
